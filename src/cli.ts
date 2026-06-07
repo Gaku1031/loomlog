@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { captureFile } from "./capture.ts";
 import { scanCodex } from "./scan.ts";
+import { buildReport, renderText } from "./report.ts";
 import { resolveVault } from "./util.ts";
 import type { AgentId } from "./types.ts";
 
@@ -13,20 +14,41 @@ Usage:
   loomlog scan [codex] [--vault <dir>] [--since <YYYY-MM-DD>]
       Ingest new/changed Codex sessions from ~/.codex/sessions (lazy, idempotent).
 
+  loomlog report [--date <YYYY-MM-DD>] [-w|--week] [--since <d>] [--until <d>]
+                 [--project <name>] [--json] [--vault <dir>]
+      Summarize the vault over a date range. Default: today, human-readable.
+      --json emits compact JSON for a host model to format into a report.
+
 Options:
   --vault <dir>   Vault directory (default: $LOOMLOG_VAULT or ~/loomlog)
   --agent <id>    Force the source agent (default: auto-detect from path)
-  --since <date>  (scan) Only ingest sessions on/after this date
+  --since <date>  Only include sessions on/after this date
+  --until <date>  (report) End of range (default: today)
+  --date <date>   (report) Single day (default: today)
+  -w, --week      (report) Last 7 days ending at --date/today
+  --project <p>   (report) Filter to one project
+  --json          (report) Machine-readable output
 
-More commands (init/report) coming next.`;
+More commands (init) coming next.`;
+
+const BOOLEAN_FLAGS = new Set(["json", "week"]);
 
 function parseFlags(args: string[]): { positional: string[]; flags: Record<string, string> } {
   const positional: string[] = [];
   const flags: Record<string, string> = {};
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
-    if (a.startsWith("--")) {
-      flags[a.slice(2)] = args[++i] ?? "";
+    if (a === "-w") {
+      flags.week = "true";
+    } else if (a.startsWith("--")) {
+      const name = a.slice(2);
+      const next = args[i + 1];
+      if (BOOLEAN_FLAGS.has(name) || next === undefined || next.startsWith("-")) {
+        flags[name] = "true";
+      } else {
+        flags[name] = next;
+        i++;
+      }
     } else {
       positional.push(a);
     }
@@ -69,6 +91,18 @@ async function main(): Promise<void> {
         `✓ codex scan: ${s.captured} captured, ${s.skipped} skipped, ${s.errors} errors (${s.found} found)`,
       );
       console.log(`  vault: ${vault}`);
+      break;
+    }
+    case "report": {
+      const vault = resolveVault(flags.vault);
+      const data = buildReport(vault, {
+        date: flags.date,
+        week: flags.week === "true",
+        since: flags.since,
+        until: flags.until,
+        project: flags.project,
+      });
+      console.log(flags.json === "true" ? JSON.stringify(data) : renderText(data));
       break;
     }
     case undefined:

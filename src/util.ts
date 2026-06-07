@@ -10,6 +10,25 @@ export function localDate(iso: string): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Today's local date (YYYY-MM-DD). */
+export function todayLocal(): string {
+  return localDate(new Date().toISOString());
+}
+
+/** Add `n` days to a YYYY-MM-DD date, returning YYYY-MM-DD (timezone-safe). */
+export function addDays(date: string, n: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const dt = new Date(y!, m! - 1, d! + n);
+  return localDate(dt.toISOString());
+}
+
+/** Inclusive list of YYYY-MM-DD dates from `from` to `to`. */
+export function rangeDates(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let cur = from; cur <= to; cur = addDays(cur, 1)) out.push(cur);
+  return out;
+}
+
 /** Active minutes: sum of inter-event gaps, ignoring gaps longer than `maxGapMin`. */
 export function activeMinutes(isoTimestamps: string[], maxGapMin = 5): number {
   const ts = isoTimestamps

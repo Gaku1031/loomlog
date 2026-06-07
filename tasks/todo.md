@@ -25,7 +25,7 @@
 - [ ] Codex prompt / Gemini command
 
 ### M4: report & 公開
-- [ ] `loomlog report --json`(date/-w/--project)
+- [x] `loomlog report [--date|-w|--since/--until|--project] [--json]`(2026-06-07 完了・検証済み: 横断レンジ/フィルタ/JSON妥当性)
 - [ ] README 3セクション(claude/codex/gemini)
 - [ ] Gemini 日次スキャン(launchd/cron, 実験的)
 - [ ] npm publish / GitHub 公開
