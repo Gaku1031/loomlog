@@ -18,15 +18,16 @@
 - [x] `src/cli.ts scan codex [--since]`(scanned.json の mtime 差分で冪等)
 - [x] **検証**: 実Codex 7セッション取込→再scanは全skip / 複数プロジェクト集約 / 同一vaultで claude+codex 共存 / typecheck pass
 
-### M3: init & 連携
-- [ ] `loomlog init`(vault作成 / obsidian.json追記 / graph.json書込)
-- [ ] エージェント検出＋設定マージ(バックアップ・冪等)
-- [ ] Claude プラグイン(Stopフック + /report,/weekly)
-- [ ] Codex prompt / Gemini command
+### M3: init & 連携 ✅ 完了 2026-06-07
+- [x] `loomlog init`(vault作成 / graph.json書込 / obsidian.json登録=追記・冪等・バックアップ)
+- [x] エージェント検出 + Claude `settings.json` 安全マージ(`--wire-claude`、追記のみ・バックアップ・冪等)＋`capture --hook`(Stopペイロードstdin)
+- [x] Claude プラグイン(integrations/claude-plugin: Stopフック自己登録 + /report,/weekly)
+- [x] Codex prompt / Gemini command(integrations/)
+- [x] **検証**: 実configのコピーに対し init/--wire-claude → 既存vault4→5・既存pccフック保全・loomlog追加・冪等 / capture --hook 動作 / typecheck pass
 
 ### M4: report & 公開
 - [x] `loomlog report [--date|-w|--since/--until|--project] [--json]`(2026-06-07 完了・検証済み: 横断レンジ/フィルタ/JSON妥当性)
-- [ ] README 3セクション(claude/codex/gemini)
+- [x] README 3セクション(claude/codex/gemini)(2026-06-07)
 - [ ] Gemini 日次スキャン(launchd/cron, 実験的)
 - [ ] npm publish / GitHub 公開
 

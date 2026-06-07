@@ -47,18 +47,49 @@ npx tsx src/cli.ts capture ~/.claude/projects/<proj>/<session>.jsonl --vault ./m
 cat ./my-vault/Daily/*.md
 ```
 
-## Install (per agent)
+## Install
 
-> Coming with `loomlog init`. Each agent gets a thin integration; the core engine is shared.
+```bash
+npm install -g loomlog
+loomlog init                 # creates ~/loomlog, writes the Obsidian graph config,
+                             # registers the vault with Obsidian, detects your agents
+export LOOMLOG_VAULT=~/loomlog
+```
 
-### Claude Code
-_TODO: plugin (Stop hook + `/report`, `/weekly`)._
+`init` prints tailored next-steps for whichever agents it finds. The core engine is
+shared; each agent gets a thin integration (in [`integrations/`](./integrations)).
 
-### Codex
-_TODO: `~/.codex/prompts/report.md` + lazy scan._
+### Claude Code — auto-capture (logs auto-delete after ~30d, so we capture promptly)
 
-### Gemini CLI
-_TODO: custom command + daily scan (experimental)._
+Recommended: install the bundled **plugin** — its `Stop` hook self-registers, so your
+`settings.json` is left untouched:
+
+- add this repo as a plugin marketplace, or copy [`integrations/claude-plugin/`](./integrations/claude-plugin) into your Claude Code plugins.
+
+Or wire your own settings (strictly additive, backed up to `settings.json.loomlog.bak`, idempotent):
+
+```bash
+loomlog init --wire-claude
+```
+
+Then `/report` (today) and `/weekly` work inside Claude Code.
+
+### Codex — no auto-delete, so a lazy scan suffices (no hook needed)
+
+```bash
+cp integrations/codex/prompts/report.md ~/.codex/prompts/report.md
+```
+
+Run `/report` in Codex, or `loomlog scan codex && loomlog report` anytime.
+
+### Gemini CLI — experimental (logs auto-delete by default → capture via daily scan)
+
+```bash
+cp integrations/gemini/commands/report.toml ~/.gemini/commands/report.toml
+```
+
+> A scheduled daily scan (launchd/cron) is the planned capture path for Gemini, since
+> its sessions can be auto-deleted before you review. Treat Gemini support as best-effort.
 
 ## Data model
 

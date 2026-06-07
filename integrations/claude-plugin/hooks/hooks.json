@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "loomlog capture --hook 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,15 +1,23 @@
 #!/usr/bin/env node
-import { captureFile } from "./capture.ts";
+import { captureFile, captureHook } from "./capture.ts";
 import { scanCodex } from "./scan.ts";
 import { buildReport, renderText } from "./report.ts";
+import { initVault, wireClaudeHook } from "./init.ts";
 import { resolveVault } from "./util.ts";
 import type { AgentId } from "./types.ts";
 
 const USAGE = `loomlog — local, cross-agent dev journal
 
 Usage:
+  loomlog init [--vault <dir>] [--skip-obsidian] [--wire-claude]
+      Scaffold the vault, write the Obsidian graph config, register it with
+      Obsidian, and report which agents were detected. --wire-claude also adds a
+      Stop hook to ~/.claude/settings.json (additive, backed up, idempotent).
+
   loomlog capture <session-log-path> [--vault <dir>] [--agent <claude-code|codex|gemini>]
+  loomlog capture --hook [--vault <dir>]
       Parse one agent session log into the vault (mechanical, no LLM).
+      --hook reads a Claude Stop-hook payload (transcript_path) from stdin.
 
   loomlog scan [codex] [--vault <dir>] [--since <YYYY-MM-DD>]
       Ingest new/changed Codex sessions from ~/.codex/sessions (lazy, idempotent).
@@ -31,7 +39,7 @@ Options:
 
 More commands (init) coming next.`;
 
-const BOOLEAN_FLAGS = new Set(["json", "week"]);
+const BOOLEAN_FLAGS = new Set(["json", "week", "hook", "skip-obsidian", "wire-claude"]);
 
 function parseFlags(args: string[]): { positional: string[]; flags: Record<string, string> } {
   const positional: string[] = [];
@@ -62,13 +70,19 @@ async function main(): Promise<void> {
 
   switch (cmd) {
     case "capture": {
+      const vault = resolveVault(flags.vault);
+      if (flags.hook === "true") {
+        // Stop-hook mode: never fail loudly — must not block the agent.
+        const res = await captureHook(vault);
+        if (res) console.log(`✓ captured ${res.project} → ${res.date}`);
+        break;
+      }
       const path = positional[0];
       if (!path) {
-        console.error("error: capture needs a <session-log-path>\n");
+        console.error("error: capture needs a <session-log-path> (or --hook)\n");
         console.error(USAGE);
         process.exit(1);
       }
-      const vault = resolveVault(flags.vault);
       const res = await captureFile(path, vault, flags.agent as AgentId | undefined);
       if (!res) {
         console.error(`no session data found in ${path}`);
@@ -77,6 +91,36 @@ async function main(): Promise<void> {
       const verb = res.alreadyIngested ? "re-captured" : "captured";
       console.log(`✓ ${verb} ${res.project} → ${res.date}`);
       console.log(`  ${res.dailyPath}`);
+      break;
+    }
+    case "init": {
+      const vault = resolveVault(flags.vault);
+      const r = initVault(vault, {
+        obsidianConfig: flags["obsidian-config"],
+        skipObsidian: flags["skip-obsidian"] === "true",
+      });
+      console.log(`✓ vault ready: ${r.vault}`);
+      console.log(`  dirs: ${r.createdDirs.length ? r.createdDirs.join(", ") : "(all present)"}`);
+      console.log(`  graph.json: ${r.graphWritten ? "written" : "kept existing"}`);
+      const reg = { added: "registered with Obsidian", exists: "already in Obsidian", "no-config": "Obsidian not registered (no config / skipped)" }[r.register];
+      console.log(`  obsidian: ${reg}`);
+      const detected = Object.entries({ "claude-code": r.agents.claudeCode, codex: r.agents.codex, gemini: r.agents.gemini })
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+      console.log(`  agents detected: ${detected.join(", ") || "none"}`);
+
+      if (flags["wire-claude"] === "true") {
+        const w = wireClaudeHook(flags["claude-settings"]);
+        const msg = { added: "Stop hook added (backup at settings.json.loomlog.bak)", exists: "Stop hook already present", "no-file": "~/.claude/settings.json not found" }[w];
+        console.log(`  claude wiring: ${msg}`);
+      }
+
+      console.log("");
+      console.log("next:");
+      console.log(`  export LOOMLOG_VAULT="${vault}"`);
+      if (r.agents.claudeCode) console.log("  • Claude Code: install the plugin (integrations/claude-plugin) or run: loomlog init --wire-claude");
+      if (r.agents.codex) console.log("  • Codex: copy integrations/codex/prompts/report.md → ~/.codex/prompts/ ; capture via `loomlog scan codex`");
+      if (r.agents.gemini) console.log("  • Gemini: copy integrations/gemini/commands/report.toml → ~/.gemini/commands/ (experimental)");
       break;
     }
     case "scan": {

@@ -1,0 +1,7 @@
+Run `loomlog scan codex --since $(date +%F)` to ingest today's Codex sessions, then run `loomlog report --json`. From the returned JSON, write today's cross-agent work report in Japanese:
+
+- per project: what was worked on (意図), key changes, and 詰まり (#blocker) if any
+- concise — no filler, no raw stats dumps
+- end with 2–3 short reflective questions
+
+Assumes `loomlog` is installed globally and `LOOMLOG_VAULT` is set (defaults to ~/loomlog).

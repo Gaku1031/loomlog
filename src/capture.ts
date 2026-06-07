@@ -31,3 +31,25 @@ export async function captureFile(
   if (!rec) return null;
   return captureSession(vault, rec);
 }
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const c of process.stdin) chunks.push(c as Buffer);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+/**
+ * Capture driven by a Claude Code Stop hook: the hook delivers JSON on stdin
+ * containing `transcript_path`. Always exits cleanly so it never blocks the agent.
+ */
+export async function captureHook(vault: string): Promise<CaptureResult | null> {
+  let payload: any;
+  try {
+    payload = JSON.parse(await readStdin());
+  } catch {
+    return null;
+  }
+  const path: unknown = payload?.transcript_path;
+  if (typeof path !== "string" || !path) return null;
+  return captureFile(path, vault, "claude-code");
+}
