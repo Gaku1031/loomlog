@@ -1,6 +1,7 @@
 import { basename } from "node:path";
 import type { AgentId } from "./types.ts";
 import { parseClaudeTranscript } from "./adapters/claude.ts";
+import { parseCodexRollout } from "./adapters/codex.ts";
 import { captureSession, type CaptureResult } from "./store.ts";
 
 /** Guess which agent produced a session log from its path. */
@@ -21,8 +22,11 @@ export async function captureFile(
     case "claude-code":
       rec = await parseClaudeTranscript(path);
       break;
+    case "codex":
+      rec = await parseCodexRollout(path);
+      break;
     default:
-      throw new Error(`adapter for "${agent}" not implemented yet (v1 supports claude-code; codex next)`);
+      throw new Error(`adapter for "${agent}" not implemented yet (v1 supports claude-code, codex)`);
   }
   if (!rec) return null;
   return captureSession(vault, rec);

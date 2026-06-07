@@ -3,7 +3,7 @@ import { basename, relative } from "node:path";
 import { createInterface } from "node:readline";
 import type { SessionRecord } from "../types.ts";
 import { redact } from "../redact.ts";
-import { activeMinutes, localDate, tally } from "../util.ts";
+import { activeMinutes, commandCategory, localDate, tally } from "../util.ts";
 
 const FILE_TOOLS = new Set(["Edit", "Write", "NotebookEdit", "MultiEdit"]);
 
@@ -16,17 +16,6 @@ function isHumanPrompt(text: string): boolean {
   if (t.startsWith("[Request interrupted")) return false;
   if (t.includes("command-name") || t.includes("local-command")) return false;
   return true;
-}
-
-/** Leading command name from a shell command line (strips env-assignments / sudo / path). */
-function commandCategory(cmd: string): string {
-  for (let tok of cmd.trim().split(/\s+/)) {
-    if (!tok || tok === "sudo" || tok === "\\") continue; // skip blanks, sudo, line-continuation
-    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tok)) continue; // FOO=bar
-    tok = tok.replace(/^.*\//, "").replace(/[;|&].*$/, ""); // basename, drop trailing operators
-    return tok.toLowerCase();
-  }
-  return "?";
 }
 
 /**

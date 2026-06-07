@@ -37,3 +37,14 @@ export function tally(items: string[]): Record<string, number> {
   for (const it of items) out[it] = (out[it] ?? 0) + 1;
   return out;
 }
+
+/** Leading command name from a shell command line (strips env-assignments / sudo / path). */
+export function commandCategory(cmd: string): string {
+  for (let tok of cmd.trim().split(/\s+/)) {
+    if (!tok || tok === "sudo" || tok === "\\") continue; // skip blanks, sudo, line-continuation
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tok)) continue; // FOO=bar
+    tok = tok.replace(/^.*\//, "").replace(/[;|&].*$/, ""); // basename, drop trailing operators
+    return tok.toLowerCase();
+  }
+  return "?";
+}

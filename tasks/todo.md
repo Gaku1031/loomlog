@@ -13,9 +13,10 @@
 - [x] `src/capture.ts` + `src/cli.ts capture <path>`
 - [x] **検証**: 実transcriptで capture → 日次MD生成を確認(冪等・typecheck pass・tsupビルド→node実行まで確認)
 
-### M2: Codex 遅延スキャン
-- [ ] Codex アダプタ(rollout-*.jsonl ストリーム読み)
-- [ ] `src/cli.ts scan codex`(前回オフセット以降のみ)
+### M2: Codex 遅延スキャン ✅ 完了 2026-06-07
+- [x] Codex アダプタ(rollout-*.jsonl ストリーム読み。exec_command→コマンド / apply_patch→ファイル / AGENTS.md注入除外の意図抽出 / exit_codeでの詰まり検出)
+- [x] `src/cli.ts scan codex [--since]`(scanned.json の mtime 差分で冪等)
+- [x] **検証**: 実Codex 7セッション取込→再scanは全skip / 複数プロジェクト集約 / 同一vaultで claude+codex 共存 / typecheck pass
 
 ### M3: init & 連携
 - [ ] `loomlog init`(vault作成 / obsidian.json追記 / graph.json書込)

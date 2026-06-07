@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { captureFile } from "./capture.ts";
+import { scanCodex } from "./scan.ts";
 import { resolveVault } from "./util.ts";
 import type { AgentId } from "./types.ts";
 
@@ -9,11 +10,15 @@ Usage:
   loomlog capture <session-log-path> [--vault <dir>] [--agent <claude-code|codex|gemini>]
       Parse one agent session log into the vault (mechanical, no LLM).
 
+  loomlog scan [codex] [--vault <dir>] [--since <YYYY-MM-DD>]
+      Ingest new/changed Codex sessions from ~/.codex/sessions (lazy, idempotent).
+
 Options:
   --vault <dir>   Vault directory (default: $LOOMLOG_VAULT or ~/loomlog)
   --agent <id>    Force the source agent (default: auto-detect from path)
+  --since <date>  (scan) Only ingest sessions on/after this date
 
-More commands (scan/init/report) coming as adapters land.`;
+More commands (init/report) coming next.`;
 
 function parseFlags(args: string[]): { positional: string[]; flags: Record<string, string> } {
   const positional: string[] = [];
@@ -50,6 +55,20 @@ async function main(): Promise<void> {
       const verb = res.alreadyIngested ? "re-captured" : "captured";
       console.log(`✓ ${verb} ${res.project} → ${res.date}`);
       console.log(`  ${res.dailyPath}`);
+      break;
+    }
+    case "scan": {
+      const agent = positional[0] ?? "codex";
+      if (agent !== "codex") {
+        console.error(`scan currently supports: codex (got "${agent}")`);
+        process.exit(1);
+      }
+      const vault = resolveVault(flags.vault);
+      const s = await scanCodex(vault, { since: flags.since });
+      console.log(
+        `✓ codex scan: ${s.captured} captured, ${s.skipped} skipped, ${s.errors} errors (${s.found} found)`,
+      );
+      console.log(`  vault: ${vault}`);
       break;
     }
     case undefined:
