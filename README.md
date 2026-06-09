@@ -288,10 +288,14 @@ instead — `loomlog reflect` alone only prints the model-facing JSON.
 
 ## How it works
 
-```
-agent session logs ──(capture, mechanical, 0 tokens)──▶ <vault>/Daily/*.md, Projects/*.md
-                                                              │
-                                  agent integration command ──┘──▶ host model writes your report
+```mermaid
+flowchart LR
+    logs["Agent session logs<br/>Claude Code · Codex · Gemini CLI"]
+    vault[("Vault<br/>Daily/*.md · Projects/*.md")]
+    model["Host model writes<br/>your report / reflection"]
+
+    logs -->|"capture · mechanical · 0 tokens"| vault
+    vault -->|"agent integration command"| model
 ```
 
 Capture is the mechanical half (no LLM, no tokens); reports and reflections are the model half,
@@ -354,8 +358,8 @@ history deserves an explicit trust model.
   folder** unless you accept that exposure, and keep it inside your disk-encryption / backup hygiene.
 - **Reports re-read your history into a tool-enabled agent.** `report` and `reflect` feed captured
   prompts back to your AI agent — which can browse, run shell, and read files. The integration
-  commands explicitly fence vault content as *untrusted data, never instructions*, to blunt
-  prompt-injection laundering — but no prompt-level defense is absolute. If a session ever ingested
+  commands explicitly fence vault content as *untrusted data, never instructions*, which makes it
+  harder to smuggle instructions in through a report — but no prompt-level defense is absolute. If a session ever ingested
   hostile text (a poisoned web page, a malicious repo README), be deliberate about running reports
   in an agent that has broad tool permissions.
 - **Scope what gets captured.** loomlog captures whatever sessions exist under `~/.claude`,
