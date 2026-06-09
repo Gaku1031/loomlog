@@ -159,9 +159,9 @@ Copy-Item "$LOOMLOG_PKG\integrations\claude-plugin\commands\*.md" "$HOME\.claude
 Use the plugin *or* this — not both, or the Stop hook runs twice (harmless but redundant).
 
 > **Windows note:** the wired Stop-hook command uses POSIX shell syntax (`2>/dev/null || true`).
-> If your Claude Code doesn't run hooks through a POSIX shell, skip the hook and capture with a
-> scheduled `loomlog scan claude` instead (Claude keeps transcripts ~30 days) — see the
-> [scheduled-scan recipe](#gemini-cli--experimental) below and swap `all` for `claude`.
+> If your Claude Code doesn't run hooks through a POSIX shell, skip the hook and run
+> `loomlog init --schedule-scan` instead — a daily scan captures Claude too (transcripts live
+> ~30 days). See [the scheduled scan](#gemini-cli--experimental) below.
 
 </details>
 
@@ -208,13 +208,37 @@ loomlog scan gemini               # ingest your current Gemini sessions
 ```
 
 Then run **`/loomlog:report`** or **`/loomlog:reflect`** in Gemini. Gemini records prompts only
-(no file/command detail) and auto-deletes old sessions, so schedule a daily scan to avoid losing
-history:
+(no file/command detail) and **auto-deletes old sessions** — a session that is never scanned
+before its purge is lost for good. Codex never deletes, so it is only ever *deferred*, not lost;
+Claude captures live via its Stop hook. So a scheduled daily scan exists mainly to protect Gemini.
+
+**The turnkey way** — let `init` install it for your OS (idempotent, removable):
+
+```bash
+loomlog init --schedule-scan            # daily at 13:00; add --scan-at 09:30 to change
+loomlog init --unschedule-scan          # remove it
+```
+
+This picks the right mechanism per OS and — crucially — one that **catches up a run the machine
+slept through** (a fixed clock time is routinely missed on a laptop):
+
+| OS | mechanism | catches up a missed run? |
+|----|-----------|--------------------------|
+| macOS | launchd `StartCalendarInterval` + `RunAtLoad` (runs at login too) | yes |
+| Windows | Task Scheduler `-StartWhenAvailable` | yes |
+| Linux / other unix | cron | no — pick a time the box is on (a server/WSL usually always is) |
+
+The default is **13:00, not late at night**, precisely because cron can't catch up and a laptop is
+likely closed at 22:00. The node binary and vault path are baked in as absolute paths (launchd/cron
+run with a minimal PATH). Volta users automatically get its version-independent shim, so it survives
+Node upgrades; nvm/fnm pin a per-version path, so re-run `--schedule-scan` after upgrading Node.
+
+<details><summary>Prefer to wire it by hand?</summary>
 
 **macOS / Linux** — add a cron entry (`crontab -e`):
 
 ```cron
-0 22 * * *  loomlog scan all --vault ~/loomlog
+0 13 * * *  loomlog scan all --vault ~/loomlog
 ```
 
 **Windows (PowerShell)** — register a daily scheduled task (it inherits `LOOMLOG_VAULT` from
@@ -222,9 +246,12 @@ step 2):
 
 ```powershell
 $action  = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-NoProfile -Command "loomlog scan all"'
-$trigger = New-ScheduledTaskTrigger -Daily -At 10PM
-Register-ScheduledTask -TaskName "loomlog-scan" -Action $action -Trigger $trigger -Description "Daily loomlog scan"
+$trigger = New-ScheduledTaskTrigger -Daily -At 1PM
+$set     = New-ScheduledTaskSettingsSet -StartWhenAvailable
+Register-ScheduledTask -TaskName "loomlog-scan" -Action $action -Trigger $trigger -Settings $set -Description "Daily loomlog scan"
 ```
+
+</details>
 
 Treat Gemini support as best-effort.
 

@@ -4,6 +4,7 @@ import { scanClaude, scanCodex, scanGemini, type ScanSummary } from "./scan.ts";
 import { buildReport, renderText, buildPatterns, renderPatterns, type ReportOptions } from "./report.ts";
 import { buildReflection, saveReflection, isTemplate, FRAMEWORKS, type Template } from "./reflect.ts";
 import { initVault, wireClaudeHook } from "./init.ts";
+import { scheduleScan, unscheduleScan, DEFAULT_SCAN_AT, type ScheduleResult, type UnscheduleResult } from "./schedule.ts";
 import { parseFlags, validateDateFlags } from "./args.ts";
 import { addDays, isValidDate, resolveVault, todayLocal } from "./util.ts";
 import type { AgentId } from "./types.ts";
@@ -12,9 +13,15 @@ const USAGE = `loomlog — local, cross-agent dev journal
 
 Usage:
   loomlog init [--vault <dir>] [--skip-obsidian] [--wire-claude]
+               [--schedule-scan [--scan-at HH:MM]] [--unschedule-scan]
       Scaffold the vault, write the Obsidian graph config, register it with
       Obsidian, and report which agents were detected. --wire-claude also adds a
       Stop hook to ~/.claude/settings.json (additive, backed up, idempotent).
+      --schedule-scan installs a daily "loomlog scan all" (macOS launchd /
+      Windows Task Scheduler / Linux cron) so Codex & Gemini sessions are
+      captured even when you don't run a command — Gemini auto-deletes old
+      sessions, so an unscanned one is lost for good. Default time ${DEFAULT_SCAN_AT}
+      (override with --scan-at); --unschedule-scan removes it.
 
   loomlog capture <session-log-path> [--vault <dir>] [--agent <claude-code|codex|gemini>]
   loomlog capture --hook [--vault <dir>]
@@ -96,6 +103,38 @@ function runQuery(token: string, flags: Record<string, string>): void {
   emit(renderText(data), data);
 }
 
+/** One-line summary of a schedule-scan attempt for the init output. */
+function describeSchedule(r: ScheduleResult): string {
+  const login = r.platform === "darwin" ? " + at login" : "";
+  switch (r.status) {
+    case "added":
+      return `${r.mechanism} job installed → daily at ${r.at}${login} (${r.target})${r.detail ? ` — ${r.detail}` : ""}`;
+    case "updated":
+      return `${r.mechanism} job updated → daily at ${r.at}${login}`;
+    case "exists":
+      return `${r.mechanism} job already set for ${r.at} (unchanged)`;
+    case "no-binary":
+      return "couldn't resolve the loomlog binary — run this from the globally installed CLI";
+    case "unsupported":
+      return `no auto-scheduler for ${r.platform} — see the README scheduled-scan recipe`;
+    case "error":
+      return `failed (${r.detail ?? "unknown error"}) — see the README scheduled-scan recipe`;
+  }
+}
+
+function describeUnschedule(r: UnscheduleResult): string {
+  switch (r.status) {
+    case "removed":
+      return `${r.mechanism} job removed`;
+    case "absent":
+      return "no scheduled scan was installed";
+    case "unsupported":
+      return `no auto-scheduler for ${r.platform}`;
+    case "error":
+      return `removal failed (${r.detail ?? "unknown error"})`;
+  }
+}
+
 async function main(): Promise<void> {
   const [cmd, ...rest] = process.argv.slice(2);
   const { positional, flags } = parseFlags(rest);
@@ -150,6 +189,13 @@ async function main(): Promise<void> {
         const w = wireClaudeHook(flags["claude-settings"], vault);
         const msg = { added: "Stop hook added (backup at settings.json.loomlog.bak)", exists: "Stop hook already present", "no-file": "~/.claude/settings.json not found" }[w];
         console.log(`  claude wiring: ${msg}`);
+      }
+
+      if (flags["schedule-scan"] === "true") {
+        console.log(`  scheduled scan: ${describeSchedule(scheduleScan(vault, { at: flags["scan-at"] }))}`);
+      }
+      if (flags["unschedule-scan"] === "true") {
+        console.log(`  scheduled scan: ${describeUnschedule(unscheduleScan())}`);
       }
 
       console.log("");

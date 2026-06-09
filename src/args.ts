@@ -1,9 +1,9 @@
 import { isValidDate } from "./util.ts";
 
 /** Flags that are presence-only (no value). */
-const BOOLEAN_FLAGS = new Set(["json", "week", "hook", "skip-obsidian", "wire-claude", "weekly"]);
+const BOOLEAN_FLAGS = new Set(["json", "week", "hook", "skip-obsidian", "wire-claude", "schedule-scan", "unschedule-scan", "weekly"]);
 /** Flags that require a value. Anything else (with `--`) is an unknown-flag error. */
-const VALUE_FLAGS = new Set(["vault", "agent", "since", "until", "date", "project", "obsidian-config", "claude-settings", "template"]);
+const VALUE_FLAGS = new Set(["vault", "agent", "since", "until", "date", "project", "obsidian-config", "claude-settings", "scan-at", "template"]);
 
 export interface ParsedArgs {
   positional: string[];

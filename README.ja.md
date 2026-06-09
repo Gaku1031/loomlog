@@ -208,22 +208,50 @@ loomlog scan gemini               # 現在のGeminiセッションを取り込�
 ```
 
 その後、Gemini内で **`/loomlog:report`** または **`/loomlog:reflect`** を実行します。Gemini は
-プロンプトのみ記録（ファイル/コマンドの詳細なし）し、古いセッションを自動削除するため、履歴を
-失わないよう日次スキャンをスケジュールしておきます:
+プロンプトのみ記録（ファイル/コマンドの詳細なし）し、**古いセッションを自動削除します** —
+一度もスキャンされないまま消えたセッションは永久に失われます。Codex は削除しないので「遅延」
+するだけ（失われない）、Claude は Stop フックで即時取得。つまり日次スキャンは主に **Gemini を
+守るため** に存在します。
+
+**お手軽版** — `init` に OS 別の仕掛けを任せる（冪等・撤去可能）:
+
+```bash
+loomlog init --schedule-scan            # 既定は毎日13:00。--scan-at 09:30 で変更
+loomlog init --unschedule-scan          # 撤去
+```
+
+OS ごとに最適な仕組みを選び、さらに **スリープで逃した実行を後から追いつき実行する** ものを使い
+ます（ノートPCでは固定時刻はしょっちゅう逃すため）:
+
+| OS | 仕組み | 逃した実行を追いつく？ |
+|----|--------|------------------------|
+| macOS | launchd `StartCalendarInterval` + `RunAtLoad`（ログイン時にも実行） | する |
+| Windows | Task Scheduler `-StartWhenAvailable` | する |
+| Linux / その他unix | cron | しない — 起動している時刻を選ぶ（サーバ/WSLは常時起動が普通） |
+
+既定が **深夜でなく13:00** なのは、cron が追いつけず、ノートPCは22時に閉じている可能性が高いから
+です。node バイナリと Vault パスは絶対パスで埋め込みます（launchd/cron は最小限の PATH で動くため）。
+Volta 利用時はバージョン非依存のシムを自動採用するので Node 更新でも壊れません。nvm/fnm はバージョン
+固定パスのため、Node を上げたら `--schedule-scan` を打ち直してください。
+
+<details><summary>手動で仕掛けたい場合</summary>
 
 **macOS / Linux** — cron に追記（`crontab -e`）:
 
 ```cron
-0 22 * * *  loomlog scan all --vault ~/loomlog
+0 13 * * *  loomlog scan all --vault ~/loomlog
 ```
 
 **Windows (PowerShell)** — 日次スケジュールタスクを登録（手順2の `LOOMLOG_VAULT` を引き継ぎます）:
 
 ```powershell
 $action  = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-NoProfile -Command "loomlog scan all"'
-$trigger = New-ScheduledTaskTrigger -Daily -At 10PM
-Register-ScheduledTask -TaskName "loomlog-scan" -Action $action -Trigger $trigger -Description "Daily loomlog scan"
+$trigger = New-ScheduledTaskTrigger -Daily -At 1PM
+$set     = New-ScheduledTaskSettingsSet -StartWhenAvailable
+Register-ScheduledTask -TaskName "loomlog-scan" -Action $action -Trigger $trigger -Settings $set -Description "Daily loomlog scan"
 ```
+
+</details>
 
 Gemini サポートはベストエフォートとお考えください。
 
