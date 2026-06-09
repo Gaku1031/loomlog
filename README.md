@@ -274,6 +274,21 @@ loomlog patterns           # what kind of work you do most
 projects, agent usage, busiest days, and recent **commits** (read straight from your `git commit`
 messages in the logs — your own "what I shipped" log, 0 tokens).
 
+**Paste it anywhere — `--copy`.** Add `--copy` (or `-c`) to any recall command to send it to the
+clipboard as **rich text**, so it pastes *formatted* into Notion, Slack, or Docs — no more raw
+Markdown and no "line 2 jumps inward" indent drift:
+
+```bash
+loomlog today --copy       # → clipboard as rich text (paste into Notion, renders)
+loomlog report -c          # same, for the report subcommand
+loomlog report --md        # print clean Markdown to stdout instead (for files / md editors)
+loomlog report --copy --md # copy plain Markdown (for Obsidian, GitHub, "paste as markdown")
+```
+
+On macOS the rich copy uses the built-in `textutil` + `pbcopy` (no extra install); Linux uses
+`wl-copy`/`xclip` if present; otherwise it falls back to copying clean Markdown as plain text.
+The default terminal output is unchanged.
+
 ### Reflect — structured retrospection
 
 Reflection runs **inside your AI agent** — the back-and-forth needs a model, and loomlog's rule is

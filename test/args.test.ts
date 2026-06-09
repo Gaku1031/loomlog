@@ -10,6 +10,15 @@ test("parses positionals, value flags, and booleans", () => {
   assert.equal(flags.week, "true");
 });
 
+test("parses --copy / -c / --md boolean flags", () => {
+  assert.equal(parseFlags(["today", "--copy"]).flags.copy, "true");
+  assert.equal(parseFlags(["today", "-c"]).flags.copy, "true");
+  assert.equal(parseFlags(["report", "--md"]).flags.md, "true");
+  const { flags } = parseFlags(["report", "-c", "--md"]);
+  assert.equal(flags.copy, "true");
+  assert.equal(flags.md, "true");
+});
+
 test("supports --flag=value form", () => {
   const { flags } = parseFlags(["--date=2026-06-08", "--project=loomlog"]);
   assert.equal(flags.date, "2026-06-08");

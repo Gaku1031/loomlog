@@ -1,7 +1,8 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { DayFile, SessionRecord } from "./types.ts";
 import { mdSafe, safeFilename } from "./util.ts";
+import { extractTopics } from "./topics.ts";
 
 /**
  * The store is the single source of truth. Markdown notes are a pure *projection*
@@ -12,7 +13,9 @@ import { mdSafe, safeFilename } from "./util.ts";
 interface ProjectStat {
   firstSeen: string;
   lastActive: string;
-  byDate: Record<string, { min: number; sessions: number; sample: string }>;
+  // `topics` is optional so a projects.json written before topic support still loads; it is
+  // backfilled on the next capture/rerender of each date.
+  byDate: Record<string, { min: number; sessions: number; sample: string; topics?: string[] }>;
 }
 type ProjectIndex = Record<string, ProjectStat>;
 
@@ -112,6 +115,7 @@ function recomputeProjectDate(index: ProjectIndex, project: string, date: string
       min: recs.reduce((a, s) => a + s.activeMin, 0),
       sessions: recs.length,
       sample: recs.sort((a, b) => a.start.localeCompare(b.start))[0]!.intent,
+      topics: [...new Set(recs.flatMap(extractTopics))],
     };
   }
   const dates = Object.keys(stat.byDate).sort();
@@ -133,6 +137,10 @@ function renderDaily(vault: string, day: DayFile): void {
   const projects = [...new Set(recs.map((r) => r.project))];
   const tools = [...new Set(recs.flatMap((r) => r.tools))].sort();
   const activeMin = recs.reduce((a, r) => a + r.activeMin, 0);
+  // Union of the day's topics → #topic/* tags. These become graph nodes that bridge across
+  // days and projects; #area/dev stays as the colorless domain anchor.
+  const topics = [...new Set(recs.flatMap(extractTopics))].sort();
+  const tags = ["area/dev", ...topics.map((t) => `topic/${t}`)];
 
   const fm = [
     "---",
@@ -142,7 +150,7 @@ function renderDaily(vault: string, day: DayFile): void {
     `tools: ${fmList(tools)}`,
     `sessions: ${recs.length}`,
     `active_min: ${activeMin}`,
-    `tags: [area/dev]`,
+    `tags: ${fmList(tags)}`,
     "---",
     "",
     `# ${day.date}`,
@@ -155,6 +163,11 @@ function renderDaily(vault: string, day: DayFile): void {
     // run them through mdSafe so they can't forge a [[wikilink]] or break an inline-code span.
     body.push(`## [[${r.project}]] · ${r.agent} · ${r.activeMin}m`);
     body.push(`- 意図: ${mdSafe(r.intent)}`);
+    // Inline #topic/* tags (in addition to frontmatter). Obsidian's graph view only renders
+    // tags that appear in the note BODY — frontmatter `tags:` are indexed for search/Dataview
+    // but never become graph nodes. Emitting them inline here is what makes topic nodes appear.
+    const sessionTopics = extractTopics(r);
+    if (sessionTopics.length) body.push(`- トピック: ${sessionTopics.map((t) => `#topic/${t}`).join(" ")}`);
     const prompts = r.prompts?.filter((p) => p && p !== r.intent).slice(0, 8).map(mdSafe) ?? [];
     if (prompts.length) body.push(`- 追加の依頼: ${prompts.join(" / ")}`);
     if (r.files.length) body.push(`- 変更ファイル: ${r.files.map(mdSafe).join(", ")}`);
@@ -179,16 +192,31 @@ function renderProject(vault: string, project: string, stat: ProjectStat): void 
   const totalMin = Object.values(stat.byDate).reduce((a, d) => a + d.min, 0);
   const dates = Object.keys(stat.byDate).sort((a, b) => b.localeCompare(a)); // desc
 
+  // The project's characteristic topics = most frequent across its active days. Capped so a
+  // long-lived project doesn't link to every topic it ever brushed; ties break alphabetically
+  // for stable output. These #topic/* tags create the direct Topic↔Project graph edges.
+  const freq: Record<string, number> = {};
+  for (const d of Object.values(stat.byDate)) for (const t of d.topics ?? []) freq[t] = (freq[t] ?? 0) + 1;
+  const topTopics = Object.entries(freq)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 6)
+    .map(([t]) => `topic/${t}`);
+
   const out = [
     "---",
     "type: project",
     `first_seen: ${stat.firstSeen}`,
     `last_active: ${stat.lastActive}`,
     `total_min: ${totalMin}`,
+    ...(topTopics.length ? [`tags: ${fmList(topTopics)}`] : []),
     "---",
     "",
     `# ${project}`,
     "",
+    // Inline tags so the #topic/* nodes actually render in Obsidian's graph and link to this
+    // project node — frontmatter tags alone never appear in the graph. This is what creates the
+    // direct Topic↔Project edges (a concept touched in several projects bridges them).
+    ...(topTopics.length ? [topTopics.map((t) => `#${t}`).join(" "), ""] : []),
     "## ログ",
     ...dates.map((d) => {
       const e = stat.byDate[d]!;
@@ -198,4 +226,38 @@ function renderProject(vault: string, project: string, stat: ProjectStat): void 
   ];
 
   writeAtomic(join(p.projectsDir, `${project}.md`), out.join("\n"));
+}
+
+// ---------- Rerender ----------
+
+export interface RerenderResult {
+  days: number;
+  projects: number;
+}
+
+/**
+ * Re-project every Markdown note from the store (`.loomlog/days/*.json`) without re-parsing any
+ * agent log. Because notes are a pure projection, this retroactively applies rendering changes —
+ * notably an improved topic dictionary — across the whole history. The project index is rebuilt
+ * from scratch so per-date topic data is recomputed for every date, not just newly captured ones.
+ */
+export function rerenderVault(vault: string): RerenderResult {
+  const p = paths(vault);
+  const files = existsSync(p.days) ? readdirSync(p.days).filter((f) => f.endsWith(".json")) : [];
+  const days = files
+    .map((f) => readJson<DayFile | null>(join(p.days, f), null))
+    .filter((d): d is DayFile => !!d?.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const index: ProjectIndex = {};
+  for (const day of days) {
+    renderDaily(vault, day);
+    for (const project of new Set(Object.values(day.sessions).map((s) => s.project))) {
+      recomputeProjectDate(index, project, day.date, day);
+    }
+  }
+  writeJson(p.projects, index);
+
+  for (const [project, stat] of Object.entries(index)) renderProject(vault, project, stat);
+  return { days: days.length, projects: Object.keys(index).length };
 }

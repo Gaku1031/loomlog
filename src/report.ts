@@ -159,6 +159,39 @@ export function renderText(r: ReportData): string {
   return out.join("\n");
 }
 
+function spanText(range: { from: string; to: string }): string {
+  return range.from === range.to ? range.from : `${range.from} .. ${range.to}`;
+}
+
+/**
+ * Clean GitHub-flavored Markdown for pasting (Notion / Slack / docs), in contrast to
+ * renderText's terminal layout. The key difference is *no leading indent* on bullets:
+ * renderText's `  - ` 2-space gutter looks tidy in a terminal but Markdown parsers read it
+ * as one level of list nesting — which is exactly the "line 2+ jumps inward" paste bug.
+ * Bullets sit at column 0 and headings get a trailing blank line.
+ */
+export function renderMarkdown(r: ReportData): string {
+  const out: string[] = [`# loomlog report — ${spanText(r.range)}`, ""];
+  if (r.totals.sessions === 0) {
+    out.push("(no sessions captured in this range)");
+    return out.join("\n") + "\n";
+  }
+  const agentStr = Object.entries(r.totals.agents)
+    .map(([a, c]) => `${a}×${c}`)
+    .join(", ");
+  out.push(`${r.totals.sessions} sessions · ${r.totals.activeMin}m active · ${agentStr}`, "");
+  for (const p of r.projects) {
+    out.push(`## ${p.project} — ${p.activeMin}m · ${p.sessions} sessions [${p.agents.join(", ")}]`, "");
+    for (const intent of p.intents) out.push(`- 意図: ${intent}`);
+    if (p.files.length) out.push(`- files: ${p.files.join(", ")}`);
+    const cmds = topCommands(p.commands);
+    if (cmds) out.push(`- commands: ${cmds}`);
+    if (p.commits.length) out.push(`- 成果: ${p.commits.join(" / ")}`);
+    out.push("");
+  }
+  return out.join("\n").trimEnd() + "\n";
+}
+
 // ---------- patterns: "what kind of work do I do?" ----------
 
 export interface PatternsData {
@@ -250,4 +283,33 @@ export function renderPatterns(p: PatternsData): string {
     for (const c of p.recentCommits) out.push(`  - ${c}`);
   }
   return out.join("\n");
+}
+
+/** Clean GFM patterns digest for pasting — see renderMarkdown for the why (no indent gutter). */
+export function renderMarkdownPatterns(p: PatternsData): string {
+  const out: string[] = [`# loomlog patterns — ${spanText(p.range)}`, ""];
+  if (p.totals.sessions === 0) {
+    out.push("(no sessions captured in this range)");
+    return out.join("\n") + "\n";
+  }
+  out.push(
+    `${p.totals.sessions} sessions · ${p.totals.activeMin}m active · ${p.totals.days} active days · ${p.totals.commits} commits`,
+    "",
+    "## どういう作業が多いか (command categories)",
+    "",
+    p.workTypes.map(([k, n]) => `${k}×${n}`).join(", "),
+    "",
+    "## プロジェクト別の時間配分",
+    "",
+  );
+  for (const x of p.projectsByTime) out.push(`- ${x.project}: ${x.activeMin}m (${x.pct}%)`);
+  out.push("", "## エージェント使い分け", "");
+  for (const a of p.agents) out.push(`- ${a.agent}: ${a.activeMin}m · ${a.sessions} sessions`);
+  out.push("", "## 多忙だった日", "");
+  for (const d of p.busiestDays) out.push(`- ${d.date}: ${d.activeMin}m`);
+  if (p.recentCommits.length) {
+    out.push("", "## 最近の成果 (commits)", "");
+    for (const c of p.recentCommits) out.push(`- ${c}`);
+  }
+  return out.join("\n").trimEnd() + "\n";
 }

@@ -274,6 +274,21 @@ loomlog patterns           # どんな仕事をしているかの傾向
 時間配分、エージェント利用、忙しかった日、そして直近の **コミット** — ログ内の `git commit` メッセージから
 直接読み取った、あなた自身の「何を出荷したか」ログです（トークン0）。
 
+**どこへでも貼れる — `--copy`。** どの recall コマンドにも `--copy`（または `-c`）を付けると、出力を
+**リッチテキスト**としてクリップボードに載せます。Notion・Slack・Docs に貼ると**整形済み**で入り、生の
+Markdown のままになったり「2行目以降が1段内側にズレる」こともありません:
+
+```bash
+loomlog today --copy       # → リッチテキストでクリップボードへ（Notionに貼ると描画される）
+loomlog report -c          # report サブコマンドでも同様
+loomlog report --md        # 代わりにクリーンなMarkdownを標準出力へ（ファイル/mdエディタ用）
+loomlog report --copy --md # プレーンMarkdownをコピー（Obsidian・GitHub・「Markdownとして貼付」用）
+```
+
+macOS ではリッチコピーに標準搭載の `textutil` + `pbcopy` を使います（追加インストール不要）。Linux は
+`wl-copy`/`xclip` があればそれを使い、無ければクリーンMarkdownをプレーンテキストとしてコピーします。
+既定のターミナル出力は変わりません。
+
 ### Reflect — 構造化された内省
 
 内省は **AIエージェント内で** 動きます — 対話にはモデルが要り、loomlog のルールは「ホストモデルが

@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureSession } from "../src/store.ts";
+import { captureSession, rerenderVault } from "../src/store.ts";
 import type { SessionRecord } from "../src/types.ts";
 
 function vault(): string {
@@ -62,4 +62,32 @@ test("renders Daily and Projects markdown", () => {
   assert.match(proj, /# proj/);
   const daily = readFileSync(join(v, "Daily", "2026-06-08.md"), "utf8");
   assert.match(daily, /意図: do a thing/);
+});
+
+test("emits topic tags on daily note and project MOC", () => {
+  const v = vault();
+  captureSession(v, rec({ intent: "set up the MCP server", files: ["src/store.ts"] }));
+
+  const daily = readFileSync(join(v, "Daily", "2026-06-08.md"), "utf8");
+  assert.match(daily, /tags: \[area\/dev, .*topic\/mcp/); // frontmatter (search/Dataview)
+  assert.match(daily, /topic\/typescript/);
+  assert.match(daily, /- トピック: #topic\/mcp/); // inline hashtag = graph node
+
+  const proj = readFileSync(join(v, "Projects", "proj.md"), "utf8");
+  assert.match(proj, /tags: \[.*topic\/mcp/); // frontmatter
+  assert.match(proj, /^#topic\/mcp/m); // inline tag line in body = graph node + Topic↔Project edge
+});
+
+test("rerender re-projects markdown from the store", () => {
+  const v = vault();
+  captureSession(v, rec({ intent: "set up the MCP server" }));
+  rmSync(join(v, "Daily", "2026-06-08.md"));
+  rmSync(join(v, "Projects", "proj.md"));
+
+  const r = rerenderVault(v);
+  assert.equal(r.days, 1);
+  assert.equal(r.projects, 1);
+  assert.ok(existsSync(join(v, "Daily", "2026-06-08.md")));
+  const proj = readFileSync(join(v, "Projects", "proj.md"), "utf8");
+  assert.match(proj, /topic\/mcp/);
 });

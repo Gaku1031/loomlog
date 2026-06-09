@@ -2,6 +2,41 @@
 
 設計確定版: `grill-loomlog-20260607.md`
 
+## v0.5: Topic ノード(グラフを概念地図化) — 2026-06-09
+
+問題: graph が Daily↔Project の二部グラフ(毛玉)。`tags: [area/dev]` 固定で Topic ノードが無い。
+方針(ユーザー承認済): Daily+Project 両方に `#topic/*` タグ / 0トークン決定論抽出 / `rerender` で過去遡及。
+
+- [x] `src/topics.ts` — `extractTopics(rec)`: 概念辞書(EN+JA) / 拡張子 / commandCats の3系統、dedup+cap6
+- [x] `src/store.ts` — renderDaily に topic タグ&本文行 / recomputeProjectDate に topics 保存 / renderProject に top-6 タグ
+- [x] `src/obsidian.ts` — graph.json に `tag:#topic`=orange の色グループ追加
+- [x] `src/cli.ts` + `rerenderVault` — `loomlog rerender`(store から全Markdown再投影)
+- [x] `src/obsidian.ts` — `applyGraphConfig`(graph.json を merge: showTags強制ON+不足色グループ追加, backup, 冪等。ObsidianがshowTagsをリセットする問題に対応)/ kebab-caseキー修正
+- [x] **真因(Codex診断): タグノードは生成されてたが既定の緑でProjectと同色＝埋もれ。colorGroupsはfileノード専用でtagノードに効かない** → CSSスニペット `applyGraphSnippet`(.obsidian/snippets + appearance.json enable, merge/backup/冪等)を `init` に配線。タグノード=オレンジ(#E89B30)
+- [x] `test/obsidian.test.ts` 追加 / typecheck pass / **test 69件緑** / 実vaultで init・rerender 検証 / **ユーザー実機でオレンジ表示確認(2026-06-09「いけた」)**
+- [x] 配布反映: `npm run build`(dist再生成)→ 実vaultに `loomlog rerender` + `loomlog init`(snippet)適用済み
+- [ ] README のグラフ記述(Daily↔Project↔Topic + CSSスニペットでタグ色付け が実際に成立)— 任意・別途
+
+## v0.6: クリップボード貼り付けUX (--copy) — 2026-06-09
+
+問題(実ユーザー不満): ターミナル出力をNotion等に貼ると ①2行目以降が1段ネストされる ②markdownが整形描画されない。
+原因確定:
+- ① renderText の `  - ` 先頭2スペース字下げ(report.ts:152-156)。端末では綺麗だが、Notionのmarkdownパーサは空白に敏感で「1段ネスト」と解釈する**自損**。
+- ② ターミナルはクリップボードにプレーンテキスト1種類しか載せない(リッチ型 RTF/HTML が無い)。検証済: 素のpbcopyは `utf8/string/Unicode text` のみ、`textutil html→rtf|pbcopy` で `«class RTF »` が載る。
+
+方針(ユーザー承認済): **表示用フォーマットと貼付用フォーマットを分離**。`--copy` フラグ / デフォルトはリッチ(RTF on macOS)。
+リリース: **v0.5.0**(Topic ノード v0.5 + 本機能をまとめて公開。published は 0.4.0 のままだった)。
+
+- [x] `src/report.ts` — `renderMarkdown(ReportData)` / `renderMarkdownPatterns(PatternsData)`: 字下げ無しのクリーンGFM(`# タイトル` + `## 見出し` + 見出し後空行 + 行頭`- `)。①の根治。フリーテキストはブロックレベルのみ(inline `*`/`` ` `` を再解釈しない)
+- [x] `src/clipboard.ts`(新規)— `copyToClipboard({plain, html?})`: darwin=html時 `textutil html→rtf`(spawnSync)→`pbcopy`(RTF)/plainは`pbcopy`。linux=`wl-copy --type text/html`→`xclip -t text/html`→plain各種。win32=`clip`(plainのみ)。never-throw(欠落バイナリは `error` 返り→fallback)、返値 `{ok, mechanism, rich}`。不在時は呼び元がstdoutフォールバック
+- [x] `mdToHtml(md)`(clipboard.ts)— `#..######`/`- `/段落 のブロックレベル極小コンバータ。**HTMLエスケープ必須**(`<`/`&`/`>`)・`<meta charset=utf-8>` 必須(textutilが日本語を化けさせる)。renderMarkdown 1ソースから plain+rich を派生
+- [x] `src/cli.ts` — `--copy`(alias `-c`)+ `--md` フラグ。report/query(patterns含む) を `emit()` 共通ヘルパ化。`--copy`(mac)=RTF / `--copy --md`=プレーンmd / `--copy --json`=JSON。stdout: `--md`=クリーンmd / `--json`(既存)/ 既定=端末text(不変)。確認行 `✓ copied report (rich · <span>) → clipboard — paste into Notion`
+- [x] `src/args.ts` — `--copy`/`md` を BOOLEAN_FLAGS に / `-c` short alias 追加
+- [x] USAGE(cli.ts)+ README + README.ja に `--copy`/`--md` を追記
+- [x] test: report.test.ts(renderMarkdown/Patterns が行頭スペース0=①回帰固定・見出し後空行・H1/H2・空レンジ)/ clipboard.test.ts(mdToHtml の見出し/ul集約/HTMLエスケープ/inline非解釈/charset/日本語)/ args.test.ts(--copy/-c/--md)。**全82件緑**(69→82)・typecheck pass
+- [x] 検証(実vault `~/loomlog` 42セッション): `report --copy`→`clipboard info`=«class RTF » / `--copy --md`→plainのみ・pbpaste=`# loomlog report` / `--copy --json`→JSON / `today --copy`・`patterns --copy` rich / `--md` 行頭スペース0 / 空レンジOK / **既定text出力は不変**を確認。`npm run build` でdist再生成済み
+- [ ] 残: Notion 実貼付の目視(ユーザー手元)/ 配布(commit→PR→main→npm publish 0.5.0)
+
 ## v1 マイルストーン
 
 ### M1: コア & Claude Code 縦割り(最優先・一番堅い) ✅ 完了 2026-06-07

@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { GRAPH_JSON, registerVault, type RegisterResult } from "./obsidian.ts";
+import { applyGraphConfig, applyGraphSnippet, registerVault, type GraphResult, type RegisterResult } from "./obsidian.ts";
 
 export interface DetectedAgents {
   claudeCode: boolean;
@@ -12,7 +12,8 @@ export interface DetectedAgents {
 export interface InitResult {
   vault: string;
   createdDirs: string[];
-  graphWritten: boolean;
+  graph: GraphResult;
+  snippet: "applied" | "unchanged";
   register: RegisterResult;
   agents: DetectedAgents;
 }
@@ -41,19 +42,19 @@ export function initVault(
     }
   }
 
-  // Write graph config only if absent (never clobber user customization).
-  const graphPath = join(vault, ".obsidian", "graph.json");
-  let graphWritten = false;
-  if (!existsSync(graphPath)) {
-    writeFileSync(graphPath, JSON.stringify(GRAPH_JSON, null, 2));
-    graphWritten = true;
-  }
+  // Merge loomlog's required graph settings (showTags + color groups) into graph.json. Unlike
+  // a one-time write, this repairs vaults where Obsidian has since reset showTags to false —
+  // the exact reason topic nodes can silently fail to appear. Preserves user layout & groups.
+  const graph = applyGraphConfig(join(vault, ".obsidian", "graph.json"));
+  // Color the #topic/* tag nodes — graph.json colorGroups only reach file nodes, so without
+  // this CSS snippet the topic nodes render green and vanish into the Projects nodes.
+  const snippet = applyGraphSnippet(join(vault, ".obsidian"));
 
   const register: RegisterResult = opts.skipObsidian
     ? "no-config"
     : registerVault(vault, opts.obsidianConfig);
 
-  return { vault, createdDirs, graphWritten, register, agents: detectAgents() };
+  return { vault, createdDirs, graph, snippet, register, agents: detectAgents() };
 }
 
 export type WireResult = "added" | "exists" | "no-file";
