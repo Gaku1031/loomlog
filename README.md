@@ -82,14 +82,21 @@ cp integrations/codex/prompts/report.md ~/.codex/prompts/report.md
 
 Run `/report` in Codex, or `loomlog scan codex && loomlog report` anytime.
 
-### Gemini CLI — experimental (logs auto-delete by default → capture via daily scan)
+### Gemini CLI — experimental (logs auto-delete by default → capture via scan)
 
 ```bash
 cp integrations/gemini/commands/report.toml ~/.gemini/commands/report.toml
+loomlog scan gemini        # ingest current Gemini sessions
 ```
 
-> A scheduled daily scan (launchd/cron) is the planned capture path for Gemini, since
-> its sessions can be auto-deleted before you review. Treat Gemini support as best-effort.
+Gemini's `logs.json` records **prompts only** (no file/command detail), and Gemini
+auto-deletes old sessions — so schedule a daily scan to avoid losing history, e.g. cron:
+
+```cron
+0 22 * * *  loomlog scan all --vault ~/loomlog
+```
+
+Treat Gemini support as best-effort.
 
 ## Data model
 

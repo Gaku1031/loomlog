@@ -1,7 +1,8 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { parseCodexRollout } from "./adapters/codex.ts";
+import { parseGeminiLogs } from "./adapters/gemini.ts";
 import { captureSession } from "./store.ts";
 
 export interface ScanSummary {
@@ -12,6 +13,7 @@ export interface ScanSummary {
 }
 
 const codexSessionsDir = () => join(homedir(), ".codex", "sessions");
+const geminiTmpDir = () => join(homedir(), ".gemini", "tmp");
 
 /** All rollout-*.jsonl under ~/.codex/sessions (recursive). */
 function listCodexRollouts(): string[] {
@@ -26,29 +28,46 @@ function listCodexRollouts(): string[] {
     .map((p) => join(root, p));
 }
 
-/** Extract YYYY-MM-DD from the .../sessions/YYYY/MM/DD/... path layout. */
+/** All logs.json under ~/.gemini/tmp/<dir>/. */
+function listGeminiLogs(): string[] {
+  const root = geminiTmpDir();
+  if (!existsSync(root)) return [];
+  return readdirSync(root, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => join(root, d.name, "logs.json"))
+    .filter((p) => existsSync(p));
+}
+
+/** Extract YYYY-MM-DD from the .../sessions/YYYY/MM/DD/... codex path layout. */
 function datePartOf(path: string): string | null {
   const m = path.match(/\/(\d{4})\/(\d{2})\/(\d{2})\//);
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
+function loadScanned(statePath: string): Record<string, number> {
+  if (!existsSync(statePath)) return {};
+  try {
+    return JSON.parse(readFileSync(statePath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveScanned(statePath: string, data: Record<string, number>): void {
+  mkdirSync(join(statePath, ".."), { recursive: true });
+  writeFileSync(statePath, JSON.stringify(data, null, 2) + "\n");
+}
+
 /**
- * Lazy scan of Codex sessions. Codex never auto-deletes logs, so we can ingest
- * on demand. Dedup is by file mtime (one rollout == one session); a still-growing
+ * Lazy scan of Codex sessions. Codex never auto-deletes logs, so we ingest on
+ * demand. Dedup is by file mtime (one rollout == one session); a still-growing
  * session re-captures idempotently (upsert keyed by session id).
  */
 export async function scanCodex(vault: string, opts: { since?: string } = {}): Promise<ScanSummary> {
   const statePath = join(vault, ".loomlog", "scanned.json");
-  let scanned: Record<string, number> = {};
-  if (existsSync(statePath)) {
-    try {
-      scanned = JSON.parse(readFileSync(statePath, "utf8"));
-    } catch {
-      scanned = {};
-    }
-  }
-
+  const scanned = loadScanned(statePath);
   const summary: ScanSummary = { found: 0, captured: 0, skipped: 0, errors: 0 };
+
   for (const path of listCodexRollouts()) {
     if (opts.since) {
       const d = datePartOf(path);
@@ -80,7 +99,33 @@ export async function scanCodex(vault: string, opts: { since?: string } = {}): P
     }
   }
 
-  mkdirSync(join(statePath, ".."), { recursive: true });
-  writeFileSync(statePath, JSON.stringify(scanned, null, 2) + "\n");
+  saveScanned(statePath, scanned);
+  return summary;
+}
+
+/**
+ * Lazy scan of Gemini sessions. Gemini auto-deletes old sessions by default, so a
+ * scheduled daily scan is the recommended capture path. logs.json files are small
+ * (user prompts only), so we parse all of them every time and upsert idempotently.
+ * `found` counts logs.json files; `captured` counts session records.
+ */
+export function scanGemini(vault: string, opts: { since?: string } = {}): ScanSummary {
+  const summary: ScanSummary = { found: 0, captured: 0, skipped: 0, errors: 0 };
+
+  for (const path of listGeminiLogs()) {
+    summary.found++;
+    try {
+      for (const rec of parseGeminiLogs(path)) {
+        if (opts.since && rec.date < opts.since) {
+          summary.skipped++;
+          continue;
+        }
+        captureSession(vault, rec);
+        summary.captured++;
+      }
+    } catch {
+      summary.errors++;
+    }
+  }
   return summary;
 }

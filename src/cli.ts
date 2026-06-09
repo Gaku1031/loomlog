@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { captureFile, captureHook } from "./capture.ts";
-import { scanCodex } from "./scan.ts";
+import { scanCodex, scanGemini, type ScanSummary } from "./scan.ts";
 import { buildReport, renderText } from "./report.ts";
 import { initVault, wireClaudeHook } from "./init.ts";
 import { resolveVault } from "./util.ts";
@@ -19,8 +19,9 @@ Usage:
       Parse one agent session log into the vault (mechanical, no LLM).
       --hook reads a Claude Stop-hook payload (transcript_path) from stdin.
 
-  loomlog scan [codex] [--vault <dir>] [--since <YYYY-MM-DD>]
-      Ingest new/changed Codex sessions from ~/.codex/sessions (lazy, idempotent).
+  loomlog scan [codex|gemini|all] [--vault <dir>] [--since <YYYY-MM-DD>]
+      Ingest sessions from Codex (~/.codex/sessions) and/or Gemini (~/.gemini/tmp).
+      Lazy + idempotent. Default agent: all.
 
   loomlog report [--date <YYYY-MM-DD>] [-w|--week] [--since <d>] [--until <d>]
                  [--project <name>] [--json] [--vault <dir>]
@@ -124,16 +125,16 @@ async function main(): Promise<void> {
       break;
     }
     case "scan": {
-      const agent = positional[0] ?? "codex";
-      if (agent !== "codex") {
-        console.error(`scan currently supports: codex (got "${agent}")`);
+      const agent = positional[0] ?? "all";
+      if (!["codex", "gemini", "all"].includes(agent)) {
+        console.error(`scan supports: codex | gemini | all (got "${agent}")`);
         process.exit(1);
       }
       const vault = resolveVault(flags.vault);
-      const s = await scanCodex(vault, { since: flags.since });
-      console.log(
-        `✓ codex scan: ${s.captured} captured, ${s.skipped} skipped, ${s.errors} errors (${s.found} found)`,
-      );
+      const line = (name: string, s: ScanSummary) =>
+        console.log(`✓ ${name} scan: ${s.captured} captured, ${s.skipped} skipped, ${s.errors} errors (${s.found} found)`);
+      if (agent === "codex" || agent === "all") line("codex", await scanCodex(vault, { since: flags.since }));
+      if (agent === "gemini" || agent === "all") line("gemini", scanGemini(vault, { since: flags.since }));
       console.log(`  vault: ${vault}`);
       break;
     }

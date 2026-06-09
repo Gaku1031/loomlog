@@ -28,7 +28,8 @@
 ### M4: report & 公開
 - [x] `loomlog report [--date|-w|--since/--until|--project] [--json]`(2026-06-07 完了・検証済み: 横断レンジ/フィルタ/JSON妥当性)
 - [x] README 3セクション(claude/codex/gemini)(2026-06-07)
-- [ ] Gemini 日次スキャン(launchd/cron, 実験的)
+- [x] Gemini アダプタ + `scan gemini`/`scan all`(2026-06-09 完了・検証済み: logs.json を複数セッションに分解、3エージェント統合レポート確認。logs.jsonはプロンプトのみ=files/commands無し)
+- [ ] Gemini 日次スキャンの **自動化**(launchd/cron インストーラ。現状は手動 or 手動cron設定)
 - [ ] npm publish / GitHub 公開
 
 ## v2(種は撒く・今は作らない)
