@@ -4,7 +4,7 @@ Facilitate an interactive reflection grounded in an academic reflective-practice
 (default: What / So What / Now What — Borton→Driscoll). From the returned JSON:
 
 1. Present the factual "What" stages (those with `fromFacts: true`) from `facts.report`,
-   per project: intent, key changes, work type, blockers, and 成果 (commits). Be concise.
+   per project: intent, key changes, work type, and 成果 (commits). Be concise.
 2. For each stage that has `ask`, put those questions to the user ONE STAGE AT A TIME and
    wait for their answer — don't fill the reflection in for them.
 3. When every stage is answered, compose the reflection in the `template.name` structure and

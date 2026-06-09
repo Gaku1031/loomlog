@@ -72,7 +72,7 @@ saved to `Reflections/<date>.md` (a folder capture never overwrites).
 and the agent:
 
 1. pulls today's facts (`loomlog reflect --json` under the hood),
-2. shows you **What** you did — per project: intent, key files, work type, blockers, and the
+2. shows you **What** you did — per project: intent, key files, work type, and the
    **commits** you shipped,
 3. asks you the **So What** questions one at a time — *"今日いちばん重要だった作業は？"*,
    *"詰まったのはなぜ？"*, *"新しく分かった/決めたことは？"* — you answer in the chat,

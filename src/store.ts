@@ -155,8 +155,9 @@ function renderDaily(vault: string, day: DayFile): void {
         .map(([k]) => k);
       body.push(`- コマンド: ${r.commandCount}回 (${cats.join(", ")})`);
     }
-    body.push(`- 詰まり: ${r.errorCount > 0 ? `${r.errorCount}件のエラー #blocker` : "なし"}`);
-    if (r.commits.length) body.push(`- 成果: ${r.commits.map((c) => `\`${c}\``).join(" / ")}`);
+    // errorCount is kept in the store but not surfaced as a bare count (low signal);
+    // a meaningful "recurring blocker" view is planned via error fingerprints (v0.4).
+    if (r.commits?.length) body.push(`- 成果: ${r.commits.map((c) => `\`${c}\``).join(" / ")}`);
     body.push("");
   }
 

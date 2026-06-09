@@ -12,7 +12,7 @@ argument-hint: "[wsn|gibbs|aar|kpt|ywt] (省略時は wsn)"
 2. `loomlog reflect --template ${1:-wsn} --json` を実行し、返ったJSONを読む。
    - `facts`(事実)・`stages`(振り返りの型の各段)・`template`(学術的出典)・`save.command`(保存コマンド)が入っている。
 3. **What(事実)**: `stages` のうち `fromFacts: true` の段を、`facts.report` から簡潔に日本語で提示する
-   (プロジェクト別に: 意図・主な変更・作業の種類・詰まり・**成果(commits)**)。羅列せず要点だけ。
+   (プロジェクト別に: 意図・主な変更・作業の種類・**成果(commits)**)。羅列せず要点だけ。
 4. **So What / Now What(内省)**: `ask` を持つ段について、その質問をユーザーに**1段ずつ**問いかけ、
    回答を待つ。先回りして答えを埋めない。ユーザーの言葉を引き出す。
 5. 全段そろったら、`template.name` の構造で振り返りを markdown に組み立て、最後に

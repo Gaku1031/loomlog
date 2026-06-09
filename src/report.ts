@@ -102,7 +102,7 @@ export function buildReport(vault: string, opts: ReportOptions): ReportData {
           .sort((a, b) => a.start.localeCompare(b.start))
           .map((r) => r.intent)
           .slice(0, 8),
-        commits: [...new Set(recs.flatMap((r) => r.commits))].slice(0, 15),
+        commits: [...new Set(recs.flatMap((r) => r.commits ?? []))].slice(0, 15),
       };
     })
     .sort((a, b) => b.activeMin - a.activeMin);
@@ -148,7 +148,6 @@ export function renderText(r: ReportData): string {
     if (p.files.length) out.push(`  - files: ${p.files.join(", ")}`);
     const cmds = topCommands(p.commands);
     if (cmds) out.push(`  - commands: ${cmds}`);
-    out.push(`  - 詰まり: ${p.blockers > 0 ? `${p.blockers}件 #blocker` : "なし"}`);
     if (p.commits.length) out.push(`  - 成果: ${p.commits.join(" / ")}`);
     out.push("");
   }
@@ -192,7 +191,7 @@ export function buildPatterns(vault: string, opts: ReportOptions): PatternsData 
     projMin[s.project] = (projMin[s.project] ?? 0) + s.activeMin;
     agentMin[s.agent] = (agentMin[s.agent] ?? 0) + s.activeMin;
     agentSessions[s.agent] = (agentSessions[s.agent] ?? 0) + 1;
-    commits.push(...s.commits);
+    commits.push(...(s.commits ?? []));
   }
 
   return {
@@ -227,7 +226,7 @@ export function renderPatterns(p: PatternsData): string {
     out.push("(no sessions captured in this range)");
     return out.join("\n");
   }
-  out.push(`${p.totals.sessions} sessions · ${p.totals.activeMin}m active · ${p.totals.days} active days · ${p.totals.blockers} blockers · ${p.totals.commits} commits`);
+  out.push(`${p.totals.sessions} sessions · ${p.totals.activeMin}m active · ${p.totals.days} active days · ${p.totals.commits} commits`);
   out.push("");
   out.push("## どういう作業が多いか (command categories)");
   out.push("  " + p.workTypes.map(([k, n]) => `${k}×${n}`).join(", "));

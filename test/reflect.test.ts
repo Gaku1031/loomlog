@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { captureSession } from "../src/store.ts";
-import { buildPatterns } from "../src/report.ts";
+import { buildPatterns, buildReport } from "../src/report.ts";
 import { buildReflection, saveReflection, isTemplate, FRAMEWORKS } from "../src/reflect.ts";
 import type { SessionRecord } from "../src/types.ts";
 
@@ -40,6 +40,28 @@ test("buildPatterns aggregates work types, time split, and commits", () => {
   assert.equal(p.projectsByTime[0]!.project, "proj");
   assert.equal(p.projectsByTime[0]!.pct, 80);
   assert.deepEqual(p.agents.map((a) => a.agent).sort(), ["claude-code", "codex"]);
+});
+
+test("tolerates legacy records captured before the commits field existed", () => {
+  // A day file written by loomlog 0.1/0.2 — no `commits`, no `schemaVersion`.
+  const v = mkdtempSync(join(tmpdir(), "loomlog-legacy-"));
+  mkdirSync(join(v, ".loomlog", "days"), { recursive: true });
+  const legacy = {
+    date: "2026-06-08",
+    sessions: {
+      "codex:old": {
+        id: "old", agent: "codex", project: "proj", cwd: "~/proj",
+        date: "2026-06-08", start: "2026-06-08T01:00:00.000Z", end: "2026-06-08T02:00:00.000Z",
+        activeMin: 60, intent: "legacy", files: [], commandCount: 1, commandCats: { git: 1 },
+        tools: ["shell"], errorCount: 0, sourcePath: "~/.codex/x.jsonl",
+      },
+    },
+  };
+  writeFileSync(join(v, ".loomlog", "days", "2026-06-08.json"), JSON.stringify(legacy));
+  assert.doesNotThrow(() => buildReport(v, { date: "2026-06-08" }));
+  assert.doesNotThrow(() => buildPatterns(v, { since: "2026-06-01", until: "2026-06-30" }));
+  const rep = buildReport(v, { date: "2026-06-08" });
+  assert.deepEqual(rep.projects[0]!.commits, []);
 });
 
 test("buildReflection returns facts + the framework's stages", () => {
