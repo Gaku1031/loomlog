@@ -114,10 +114,16 @@ shared; each agent gets a thin integration (in [`integrations/`](./integrations)
 
 ### Claude Code — auto-capture (logs auto-delete after ~30d, so we capture promptly)
 
-Recommended: install the bundled **plugin** — its `Stop` hook self-registers, so your
-`settings.json` is left untouched:
+Recommended: install the bundled **plugin** — its `Stop` hook self-registers (so your
+`settings.json` is left untouched) and it ships `/loomlog:report`, `/loomlog:reflect`, and
+`/loomlog:weekly`. Inside Claude Code:
 
-- add this repo as a plugin marketplace, or copy [`integrations/claude-plugin/`](./integrations/claude-plugin) into your Claude Code plugins.
+```
+/plugin marketplace add Gaku1031/loomlog
+/plugin install loomlog@loomlog
+```
+
+(The plugin calls the `loomlog` CLI, so make sure `npm i -g loomlog` is done too.)
 
 Or wire your own settings (strictly additive, backed up to `settings.json.loomlog.bak`, idempotent):
 

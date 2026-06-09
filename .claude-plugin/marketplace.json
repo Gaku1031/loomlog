@@ -1,0 +1,12 @@
+{
+  "name": "loomlog",
+  "owner": { "name": "Gaku1031" },
+  "description": "loomlog — local, cross-agent dev journal & reflection for Claude Code, Codex, and Gemini CLI.",
+  "plugins": [
+    {
+      "name": "loomlog",
+      "source": "./integrations/claude-plugin",
+      "description": "Capture Claude Code sessions (Stop hook), recall your work (/loomlog:report), and reflect with academic frameworks (/loomlog:reflect, /loomlog:weekly). Requires the loomlog CLI: npm i -g loomlog."
+    }
+  ]
+}
