@@ -1,5 +1,6 @@
+import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 
 /** Replace a leading $HOME with `~` so stored paths don't leak the username. */
 export function homeShorten(p: string): string {
@@ -58,6 +59,44 @@ export function activeMinutes(isoTimestamps: string[], maxGapMin = 5): number {
     if (delta > 0 && delta <= cap) ms += delta;
   }
   return Math.round(ms / 60_000);
+}
+
+/**
+ * Sanitize a string for safe use as a single path segment (filename).
+ * Strips path separators and `..` traversal so a crafted log-derived value can never
+ * escape the vault. `basename()` already removes separators upstream; this keeps the
+ * "everything stays under the vault" invariant explicit and defended at the write sink.
+ */
+export function safeFilename(s: string): string {
+  const cleaned = s.replace(/[/\\]/g, "_").replace(/\.{2,}/g, "_").trim();
+  return cleaned || "unknown";
+}
+
+/**
+ * True iff `target` resolves to a path inside `root` (symlinks resolved on both sides).
+ * Both must exist on disk. Used to confine hook/scan file reads to the intended log trees
+ * so untrusted input (e.g. a hook payload's `transcript_path`) can't read arbitrary files.
+ */
+export function isPathWithin(root: string, target: string): boolean {
+  try {
+    const r = realpathSync(resolve(root));
+    const t = realpathSync(resolve(target));
+    return t === r || t.startsWith(r + sep);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Neutralize the Markdown / Obsidian constructs loomlog renders structurally, so captured
+ * (untrusted) text can't forge a `[[wikilink]]` or break out of an inline-code span when it
+ * lands in the vault. Deliberately minimal — full Markdown escaping would make the journal
+ * unreadable, and the host-model prompt-injection fence in the integration commands is the
+ * primary control. A zero-width space splits `[[`/`]]` invisibly (readable, but not a link).
+ */
+export function mdSafe(s: string): string {
+  const ZWSP = "\u200b"; // zero-width space: invisible to readers, breaks [[ / ]] parsing
+  return s.replace(/`/g, "'").replace(/\[\[/g, `[${ZWSP}[`).replace(/\]\]/g, `]${ZWSP}]`);
 }
 
 /** Resolve the vault directory: explicit flag > env > default ~/loomlog. */

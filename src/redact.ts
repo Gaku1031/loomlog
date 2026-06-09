@@ -26,6 +26,14 @@ const RULES: Rule[] = [
   { re: /\bya29\.[A-Za-z0-9_-]+/g, replace: "«google-oauth»" },
   { re: /AIza[0-9A-Za-z_-]{30,}/g, replace: "«google-key»" },
   { re: /\b(?:AKIA|ASIA|AROA|AIDA)[0-9A-Z]{16}\b/g, replace: "«aws-key»" },
+  { re: /\bsb_secret_[A-Za-z0-9_-]{16,}/g, replace: "«supabase-secret»" },
+  { re: /\bsbp_[A-Za-z0-9]{20,}/g, replace: "«supabase-token»" },
+  { re: /\blin_api_[A-Za-z0-9]{20,}/g, replace: "«linear-key»" },
+  // Presigned-URL signatures: AWS SigV4 query params and Azure SAS `sig=` (only inside a query string)
+  {
+    re: /([?&](?:X-Amz-Signature|X-Amz-Credential|sig)=)[^&\s"'<>]+/gi,
+    replace: (_m, k: string) => `${k}«redacted»`,
+  },
   // Slack / Discord incoming-webhook URLs
   { re: /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9\/]+/g, replace: "«slack-webhook»" },
   { re: /https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/api\/webhooks\/[0-9]+\/[A-Za-z0-9_-]+/g, replace: "«discord-webhook»" },
@@ -56,10 +64,23 @@ export function redact(input: string): string {
 }
 
 /**
+ * Re-join tokens that were wrapped across a line break, so a secret split over a
+ * newline (e.g. "sk-ant-\nAAAA…", a pasted key that word-wrapped) can't slip past the
+ * prefix rules whose character classes don't cross "\n". Only joins across an actual
+ * line break flanked by token characters — normal prose separated by spaces is untouched,
+ * and a chance join like "quick\nbrown" → "quickbrown" matches no secret rule, so it's inert.
+ */
+function dewrap(input: string): string {
+  return input.replace(/([A-Za-z0-9_+/=-])[ \t]*\r?\n[ \t]*(?=[A-Za-z0-9_+/=-])/g, "$1");
+}
+
+/**
  * Redact, collapse whitespace, THEN clip to `max` chars.
  * Order matters: clipping first could split a secret across the boundary and
  * defeat the redaction regex, so redaction always runs on the full string.
+ * `dewrap` first defeats newline-obfuscated secrets; safe because this function
+ * discards formatting anyway (whitespace is collapsed just below).
  */
 export function redactClip(input: string, max = 120): string {
-  return redact(input).replace(/\s+/g, " ").trim().slice(0, max);
+  return redact(dewrap(input)).replace(/\s+/g, " ").trim().slice(0, max);
 }

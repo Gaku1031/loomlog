@@ -1,9 +1,11 @@
-import { basename } from "node:path";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
 import type { AgentId } from "./types.ts";
 import { parseClaudeTranscript } from "./adapters/claude.ts";
 import { parseCodexRollout } from "./adapters/codex.ts";
 import { parseGeminiLogs } from "./adapters/gemini.ts";
 import { captureSession, type CaptureResult } from "./store.ts";
+import { isPathWithin } from "./util.ts";
 
 /** Guess which agent produced a session log from its path. */
 export function detectAgent(path: string): AgentId {
@@ -49,5 +51,8 @@ export async function captureHook(vault: string): Promise<CaptureResult | null> 
   }
   const path: unknown = payload?.transcript_path;
   if (typeof path !== "string" || !path) return null;
+  // `transcript_path` arrives over untrusted hook stdin. Only ingest a real file under
+  // ~/.claude/projects so a crafted payload can't make us read an arbitrary local file.
+  if (!isPathWithin(join(homedir(), ".claude", "projects"), path)) return null;
   return captureFile(path, vault, "claude-code");
 }

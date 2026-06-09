@@ -6,7 +6,16 @@ import { parseCodexRollout } from "./adapters/codex.ts";
 import { parseGeminiLogs } from "./adapters/gemini.ts";
 import { captureSession } from "./store.ts";
 import { SCHEMA_VERSION } from "./types.ts";
-import { localDate } from "./util.ts";
+import { isPathWithin, localDate } from "./util.ts";
+
+/**
+ * Keep only paths that really resolve inside `root`. Drops symlinks (or symlinked
+ * parent dirs) that escape the agent's log tree, so a local attacker who plants a
+ * `rollout-*.jsonl` / `logs.json` symlink can't make a scan read a file elsewhere.
+ */
+export function withinRoot(root: string, paths: string[]): string[] {
+  return paths.filter((p) => isPathWithin(root, p));
+}
 
 export interface ScanSummary {
   found: number;
@@ -23,33 +32,36 @@ const geminiTmpDir = () => join(homedir(), ".gemini", "tmp");
 function listCodexRollouts(): string[] {
   const root = codexSessionsDir();
   if (!existsSync(root)) return [];
-  return readdirSync(root, { recursive: true })
+  const found = readdirSync(root, { recursive: true })
     .map(String)
     .filter((p) => {
       const b = basename(p);
       return b.startsWith("rollout-") && b.endsWith(".jsonl");
     })
     .map((p) => join(root, p));
+  return withinRoot(root, found);
 }
 
 /** All Claude Code transcripts under ~/.claude/projects (recursive). */
 function listClaudeTranscripts(): string[] {
   const root = claudeProjectsDir();
   if (!existsSync(root)) return [];
-  return readdirSync(root, { recursive: true })
+  const found = readdirSync(root, { recursive: true })
     .map(String)
     .filter((p) => p.endsWith(".jsonl") && !p.split("/").includes("subagents"))
     .map((p) => join(root, p));
+  return withinRoot(root, found);
 }
 
 /** All logs.json under ~/.gemini/tmp/<dir>/. */
 function listGeminiLogs(): string[] {
   const root = geminiTmpDir();
   if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true })
+  const found = readdirSync(root, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => join(root, d.name, "logs.json"))
     .filter((p) => existsSync(p));
+  return withinRoot(root, found);
 }
 
 /** Extract YYYY-MM-DD from the .../sessions/YYYY/MM/DD/... codex path layout. */

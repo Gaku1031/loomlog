@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { SCHEMA_VERSION, type SessionRecord } from "../types.ts";
-import { redactClip } from "../redact.ts";
+import { redact, redactClip } from "../redact.ts";
 import { activeMinutes, homeShorten, localDate } from "../util.ts";
 
 interface GeminiEntry {
@@ -40,7 +40,7 @@ export function parseGeminiLogs(path: string): SessionRecord[] {
     }
   }
   if (!cwd) cwd = basename(dirname(path));
-  const project = basename(cwd) || "unknown";
+  const project = redact(basename(cwd) || "unknown");
 
   // Group entries by session.
   const bySession = new Map<string, GeminiEntry[]>();
@@ -67,7 +67,7 @@ export function parseGeminiLogs(path: string): SessionRecord[] {
       id,
       agent: "gemini",
       project,
-      cwd: homeShorten(cwd),
+      cwd: redact(homeShorten(cwd)),
       date: localDate(start),
       start,
       end,
@@ -80,7 +80,7 @@ export function parseGeminiLogs(path: string): SessionRecord[] {
       tools: [],
       errorCount: 0,
       commits: [],
-      sourcePath: homeShorten(path),
+      sourcePath: redact(homeShorten(path)),
       schemaVersion: SCHEMA_VERSION,
     });
   }

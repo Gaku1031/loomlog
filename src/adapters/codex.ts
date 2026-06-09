@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { basename, isAbsolute, normalize, relative } from "node:path";
 import { createInterface } from "node:readline";
 import { SCHEMA_VERSION, type SessionRecord } from "../types.ts";
-import { redactClip } from "../redact.ts";
+import { redact, redactClip } from "../redact.ts";
 import { activeMinutes, commandCategory, extractCommits, homeShorten, localDate, tally } from "../util.ts";
 
 const PATCH_FILE_RE = /^\*\*\* (?:Update|Add|Delete) File: (.+)$/gm;
@@ -170,8 +170,8 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
   return {
     id: id ?? basename(path).replace(/^rollout-/, "").replace(/\.jsonl$/, ""),
     agent: "codex",
-    project: basename(wd) || "unknown",
-    cwd: homeShorten(wd),
+    project: redact(basename(wd) || "unknown"),
+    cwd: redact(homeShorten(wd)),
     date: localDate(start),
     start,
     end,
@@ -184,7 +184,7 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
     tools: [...tools].sort(),
     errorCount,
     commits: [...commits].map((c) => redactClip(c, 140)).slice(0, 20),
-    sourcePath: homeShorten(path),
+    sourcePath: redact(homeShorten(path)),
     schemaVersion: SCHEMA_VERSION,
   };
 }

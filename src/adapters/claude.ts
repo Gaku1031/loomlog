@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { basename, isAbsolute, normalize, relative } from "node:path";
 import { createInterface } from "node:readline";
 import { SCHEMA_VERSION, type SessionRecord } from "../types.ts";
-import { redactClip } from "../redact.ts";
+import { redact, redactClip } from "../redact.ts";
 import { activeMinutes, commandCategory, extractCommits, homeShorten, localDate, tally } from "../util.ts";
 
 const FILE_TOOLS = new Set(["Edit", "Write", "NotebookEdit", "MultiEdit"]);
@@ -98,8 +98,8 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
   return {
     id: sessionId ?? basename(path).replace(/\.jsonl$/, ""),
     agent: "claude-code",
-    project,
-    cwd: homeShorten(cwd),
+    project: redact(project),
+    cwd: redact(homeShorten(cwd)),
     date: localDate(start),
     start,
     end,
@@ -112,7 +112,7 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
     tools: [...tools].sort(),
     errorCount,
     commits: [...commits].map((c) => redactClip(c, 140)).slice(0, 20),
-    sourcePath: homeShorten(path),
+    sourcePath: redact(homeShorten(path)),
     schemaVersion: SCHEMA_VERSION,
   };
 }

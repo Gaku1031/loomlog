@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { DayFile, SessionRecord } from "./types.ts";
+import { mdSafe, safeFilename } from "./util.ts";
 
 /**
  * The store is the single source of truth. Markdown notes are a pure *projection*
@@ -67,6 +68,11 @@ export interface CaptureResult {
 }
 
 export function captureSession(vault: string, rec: SessionRecord): CaptureResult {
+  // Defense in depth: project & date become filename segments under the vault. basename()
+  // already strips separators upstream, but sanitize here so the "stays under the vault"
+  // invariant holds at the write sink even if an adapter changes. Same value flows to the
+  // index key, wikilink, and filename, so they stay consistent.
+  rec = { ...rec, project: safeFilename(rec.project), date: safeFilename(rec.date) };
   const p = paths(vault);
   const key = sessionKey(rec);
   const ingested = readJson<Record<string, string>>(p.ingested, {});
@@ -145,11 +151,13 @@ function renderDaily(vault: string, day: DayFile): void {
 
   const body: string[] = [];
   for (const r of recs) {
+    // Capture-derived strings (intent, prompts, files, commits) are untrusted log content:
+    // run them through mdSafe so they can't forge a [[wikilink]] or break an inline-code span.
     body.push(`## [[${r.project}]] · ${r.agent} · ${r.activeMin}m`);
-    body.push(`- 意図: ${r.intent}`);
-    const prompts = r.prompts?.filter((p) => p && p !== r.intent).slice(0, 8) ?? [];
+    body.push(`- 意図: ${mdSafe(r.intent)}`);
+    const prompts = r.prompts?.filter((p) => p && p !== r.intent).slice(0, 8).map(mdSafe) ?? [];
     if (prompts.length) body.push(`- 追加の依頼: ${prompts.join(" / ")}`);
-    if (r.files.length) body.push(`- 変更ファイル: ${r.files.join(", ")}`);
+    if (r.files.length) body.push(`- 変更ファイル: ${r.files.map(mdSafe).join(", ")}`);
     if (r.commandCount > 0) {
       const cats = Object.entries(r.commandCats)
         .sort((a, b) => b[1] - a[1])
@@ -159,7 +167,7 @@ function renderDaily(vault: string, day: DayFile): void {
     }
     // errorCount is kept in the store but not surfaced as a bare count (low signal);
     // a meaningful "recurring blocker" view is planned via error fingerprints (v0.4).
-    if (r.commits?.length) body.push(`- 成果: ${r.commits.map((c) => `\`${c}\``).join(" / ")}`);
+    if (r.commits?.length) body.push(`- 成果: ${r.commits.map((c) => `\`${mdSafe(c)}\``).join(" / ")}`);
     body.push("");
   }
 
@@ -184,7 +192,7 @@ function renderProject(vault: string, project: string, stat: ProjectStat): void 
     "## ログ",
     ...dates.map((d) => {
       const e = stat.byDate[d]!;
-      return `- [[${d}]] — ${e.min}m · ${e.sample}`;
+      return `- [[${d}]] — ${e.min}m · ${mdSafe(e.sample)}`;
     }),
     "",
   ];

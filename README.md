@@ -18,7 +18,7 @@ already log into one Obsidian-compatible vault — then lets you **recall** any 
 
 **English** · [日本語](./README.ja.md)
 
-[Requirements](#requirements) · [Setup](#setup) · [Using loomlog](#using-loomlog) · [How it works](#how-it-works) · [Data model](#data-model)
+[Requirements](#requirements) · [Setup](#setup) · [Using loomlog](#using-loomlog) · [How it works](#how-it-works) · [Data model](#data-model) · [Security](#security--privacy)
 
 </div>
 
@@ -48,6 +48,7 @@ already log into one Obsidian-compatible vault — then lets you **recall** any 
 - [Using loomlog](#using-loomlog) — Recall and Reflect
 - [How it works](#how-it-works)
 - [Data model](#data-model)
+- [Security & privacy](#security--privacy)
 - [Development](#development)
 
 ## Requirements
@@ -319,6 +320,54 @@ A vault is just Markdown:
   .obsidian/graph.json     # graph view config (written by `init`)
   .loomlog/                # source-of-truth JSON; the Markdown is a projection
 ```
+
+## Security & privacy
+
+loomlog is boring on purpose: **the capture path has no network access, no runtime
+dependencies, and never shells out.** It parses logs your agents already wrote and writes
+Markdown to your vault — nothing leaves your machine. Still, a tool that *aggregates* your work
+history deserves an explicit trust model.
+
+**What loomlog does for you**
+
+- **No egress.** The CLI makes zero network calls and spawns zero processes. Capture is a pure
+  local parse → local write.
+- **Zero runtime dependencies.** Nothing under `node_modules` runs at capture time — only Node's
+  standard library. That keeps the supply-chain surface small.
+- **Conservative capture.** File **paths only** (never contents), command **counts by category**
+  (never full args), prompt **intent** (first line, clipped).
+- **Secret redaction before storage.** Every captured string passes a redactor that masks API
+  keys, tokens, PEM private keys, JWTs, and `KEY=value` secrets. This is **defense in depth, not a
+  guarantee** — regexes miss unknown formats, internal hostnames, customer names, and PII in prose.
+- **Signed releases.** npm packages are published via OIDC Trusted Publishing with build
+  **provenance**, so you can verify a release was built from this repo's CI rather than a
+  hijacked laptop.
+- **Untrusted text is neutralized on write.** Captured prompts/commits are run through a
+  Markdown-safe pass before landing in the vault (they can't forge a `[[wikilink]]` or break an
+  inline-code span), and capture only reads files that resolve inside each agent's log tree — the
+  hook validates its `transcript_path`, and scans skip symlinks that escape the tree.
+
+**What stays your responsibility**
+
+- **The vault is plaintext at rest.** `~/loomlog` is an unencrypted, conveniently-aggregated
+  record of what you worked on. Treat it as sensitive: **don't sync it to an untrusted cloud
+  folder** unless you accept that exposure, and keep it inside your disk-encryption / backup hygiene.
+- **Reports re-read your history into a tool-enabled agent.** `report` and `reflect` feed captured
+  prompts back to your AI agent — which can browse, run shell, and read files. The integration
+  commands explicitly fence vault content as *untrusted data, never instructions*, to blunt
+  prompt-injection laundering — but no prompt-level defense is absolute. If a session ever ingested
+  hostile text (a poisoned web page, a malicious repo README), be deliberate about running reports
+  in an agent that has broad tool permissions.
+- **Scope what gets captured.** loomlog captures whatever sessions exist under `~/.claude`,
+  `~/.codex`, and `~/.gemini`. For work you never want journaled (client repos, secrets-heavy
+  sessions), don't run those agents with loomlog's hook/scan active, or prune the matching entries
+  from the vault afterward.
+- **The Stop hook auto-runs `loomlog`.** The Claude plugin executes whatever `loomlog` resolves to
+  on your `PATH` after every session ends. Install it from npm, keep it updated, and don't let an
+  untrusted directory shadow it earlier on `PATH`.
+
+Found a vulnerability? Please open a private security advisory on the
+[GitHub repo](https://github.com/Gaku1031/loomlog/security/advisories/new) rather than a public issue.
 
 ## Development
 
