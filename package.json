@@ -4,7 +4,7 @@
   "description": "Local, cross-agent dev journal for Claude Code, Codex & Gemini CLI — passively weaves your AI coding sessions into an Obsidian-compatible vault.",
   "type": "module",
   "bin": {
-    "loomlog": "./dist/cli.js"
+    "loomlog": "dist/cli.js"
   },
   "files": [
     "dist",
