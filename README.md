@@ -112,34 +112,38 @@ export LOOMLOG_VAULT=~/loomlog
 `init` prints tailored next-steps for whichever agents it finds. The core engine is
 shared; each agent gets a thin integration (in [`integrations/`](./integrations)).
 
-### Claude Code — auto-capture (logs auto-delete after ~30d, so we capture promptly)
+### Claude Code — install the plugin (recommended)
 
-Recommended: install the bundled **plugin** — its `Stop` hook self-registers (so your
-`settings.json` is left untouched) and it ships `/loomlog:report`, `/loomlog:reflect`, and
-`/loomlog:weekly`. Inside Claude Code:
+The bundled **plugin** is the standard way to use loomlog with Claude Code. Inside Claude Code:
 
 ```
 /plugin marketplace add Gaku1031/loomlog
 /plugin install loomlog@loomlog
 ```
 
-(The plugin calls the `loomlog` CLI, so make sure `npm i -g loomlog` is done too.)
+That's it. The plugin:
 
-Or wire your own settings (strictly additive, backed up to `settings.json.loomlog.bak`, idempotent):
+- **auto-captures** every session — its `Stop` hook self-registers, so you never touch
+  `settings.json`,
+- ships the slash commands **`/loomlog:report`** (today's report), **`/loomlog:reflect`**
+  (daily reflection), and **`/loomlog:weekly`** (Gibbs weekly).
+
+The plugin calls the `loomlog` CLI under the hood, so make sure it's installed too:
+`npm i -g loomlog`. Capture writes to `$LOOMLOG_VAULT` (default `~/loomlog`).
+
+<details>
+<summary>Prefer not to use the plugin?</summary>
+
+Wire the hook into your own settings (additive, backed up, idempotent) and copy the commands:
 
 ```bash
 loomlog init --wire-claude
-```
-
-Or, without the plugin, copy the commands into a namespaced folder:
-
-```bash
 mkdir -p ~/.claude/commands/loomlog
 cp integrations/claude-plugin/commands/*.md ~/.claude/commands/loomlog/
 ```
 
-Either way you get **`/loomlog:report`** (today), **`/loomlog:reflect`** (daily reflection),
-and **`/loomlog:weekly`** (Gibbs weekly) inside Claude Code.
+Use the plugin *or* this — not both, or the Stop hook runs twice (harmless but redundant).
+</details>
 
 ### Codex — no auto-delete, so a lazy scan suffices (no hook needed)
 
