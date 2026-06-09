@@ -8,7 +8,7 @@ argument-hint: "[wsn|gibbs|aar|kpt|ywt] (省略時は wsn)"
 
 手順:
 
-1. まず `loomlog scan codex --since $(date +%F)` で当日の Codex セッションを取り込む。
+1. まず `loomlog scan all --since $(date +%F)` で当日のセッションを更新する。
 2. `loomlog reflect --template ${1:-wsn} --json` を実行し、返ったJSONを読む。
    - `facts`(事実)・`stages`(振り返りの型の各段)・`template`(学術的出典)・`save.command`(保存コマンド)が入っている。
 3. **What(事実)**: `stages` のうち `fromFacts: true` の段を、`facts.report` から簡潔に日本語で提示する

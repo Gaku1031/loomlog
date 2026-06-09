@@ -54,6 +54,11 @@ function readDay(vault: string, date: string): SessionRecord[] {
   }
 }
 
+function sessionPrompts(s: SessionRecord): string[] {
+  const prompts = s.prompts?.length ? s.prompts : [s.intent];
+  return prompts.filter((p) => p && p !== "(no prompt captured)");
+}
+
 /** Aggregate the store into a report over the chosen range. */
 export function buildReport(vault: string, opts: ReportOptions): ReportData {
   const range = resolveRange(opts);
@@ -100,8 +105,8 @@ export function buildReport(vault: string, opts: ReportOptions): ReportData {
         blockers: recs.reduce((a, r) => a + r.errorCount, 0),
         intents: recs
           .sort((a, b) => a.start.localeCompare(b.start))
-          .map((r) => r.intent)
-          .slice(0, 8),
+          .flatMap((r) => sessionPrompts(r))
+          .slice(0, 24),
         commits: [...new Set(recs.flatMap((r) => r.commits ?? []))].slice(0, 15),
       };
     })

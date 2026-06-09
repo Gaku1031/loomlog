@@ -1,7 +1,7 @@
 description = "loomlog: today's cross-agent work report"
 
 prompt = """
-Run `loomlog scan codex --since $(date +%F)` then `loomlog report --json`.
+Run `loomlog scan all --since $(date +%F)` then `loomlog report --json`.
 From the returned JSON, write today's cross-agent work report in Japanese:
 - per project: what was worked on (意図), key changes, and 成果 (commits) if any
 - concise, no filler

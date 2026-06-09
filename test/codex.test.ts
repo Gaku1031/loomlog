@@ -19,6 +19,8 @@ test("codex adapter: counts shell_command, detects Exit-code errors, extracts ap
     { type: "response_item", timestamp: "2026-06-08T12:00:01.000Z", payload: { type: "message", role: "user", content: "<user_instructions>be nice</user_instructions>" } },
     // real request — content is an array of text blocks
     { type: "response_item", timestamp: "2026-06-08T12:00:02.000Z", payload: { type: "message", role: "user", content: [{ type: "input_text", text: "fix the auth bug" }] } },
+    // follow-up request in the same Codex session — report needs this too
+    { type: "response_item", timestamp: "2026-06-08T12:00:02.500Z", payload: { type: "message", role: "user", content: "also add regression tests" } },
     // newer shell_command form (command is a plain string)
     { type: "response_item", timestamp: "2026-06-08T12:00:03.000Z", payload: { type: "function_call", name: "shell_command", arguments: JSON.stringify({ command: "git status", workdir: "/home/u/proj" }) } },
     // older shell form (command is an argv array)
@@ -38,6 +40,7 @@ test("codex adapter: counts shell_command, detects Exit-code errors, extracts ap
   assert.equal(rec!.agent, "codex");
   assert.equal(rec!.project, "proj");
   assert.equal(rec!.intent, "fix the auth bug");
+  assert.deepEqual(rec!.prompts, ["fix the auth bug", "also add regression tests"]);
   assert.equal(rec!.commandCount, 3);
   assert.equal(rec!.commandCats.git, 2); // git status + git commit
   assert.equal(rec!.commandCats.npm, 1);

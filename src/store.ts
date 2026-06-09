@@ -147,6 +147,8 @@ function renderDaily(vault: string, day: DayFile): void {
   for (const r of recs) {
     body.push(`## [[${r.project}]] · ${r.agent} · ${r.activeMin}m`);
     body.push(`- 意図: ${r.intent}`);
+    const prompts = r.prompts?.filter((p) => p && p !== r.intent).slice(0, 8) ?? [];
+    if (prompts.length) body.push(`- 追加の依頼: ${prompts.join(" / ")}`);
     if (r.files.length) body.push(`- 変更ファイル: ${r.files.join(", ")}`);
     if (r.commandCount > 0) {
       const cats = Object.entries(r.commandCats)

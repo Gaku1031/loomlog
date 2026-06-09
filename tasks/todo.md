@@ -57,9 +57,19 @@
 - [x] スラッシュコマンド: `/loomlog:reflect`(WSN日次・対話・保存)/`/loomlog:weekly`(Gibbs週次)/codex・gemini reflect prompt。plugin v0.2.0
 - [x] テスト 23→29件 / README更新 / init が Reflections/ も作成 / 0.3.0
 
-### v0.4 候補(次の価値)
+## v0.4.0: 全プロンプト捕捉 + Claudeスキャン + Codexスキル(2026-06-09 — 実ユーザー不満「日報が最新セッションしか拾えず全部を振り返れない」への修正)
+- [x] **全プロンプト捕捉** `prompts[]`: 3アダプタ(claude/codex/gemini)が初回intentだけでなく**当該セッションの全人間プロンプト**を時系列で収集(redact→clip 180字・最大24件)。`intent` は `prompts[0]` 互換。report の `intents` は全プロンプトをflatMap(最大24)、Daily/*.md は先頭=「意図」/残り=「追加の依頼」で描画。schema v1 互換(`prompts?` 省略時は `[intent]` にフォールバック)
+- [x] **`scan claude`** (`scanClaude`): Stopフックを主経路としつつ、レポート時スキャンで**取りこぼし/スキーマ更新を回収**(`~/.claude/projects/**/*.jsonl`、subagents除外)。scan署名に `SCHEMA_VERSION` を含め(`scanSignature`)、スキーマ昇格で自動再取込。実データ検証: 4捕捉/23スキップ(本日mtimeだが内容日付が過去)→再実行で27全スキップ(冪等)
+- [x] **`SCHEMA_VERSION` 1→2**: `prompts` 追加に伴う版上げ。codex の scan署名も `scanSignature` に統一
+- [x] **`extractCommits` 堅牢化**: コマンド境界(`^`/`;&|(`改行・env接頭辞・sudo)の**本物の `git … commit` invocation のみ**に発火。`echo "git commit -m x"`/`grep "git commit"`/`rg "git commit -m"` 等の引用符内偽陽性を排除。負例テスト追加で固定
+- [x] **Codexスキル化** (`integrations/codex/skills/loomlog/`): Codex 0.117+ が `~/.codex/prompts` カスタムスラッシュを廃止 → SKILL.md + agents/openai.yaml(`allow_implicit_invocation`)。`$loomlog`/自然言語で起動。旧 `prompts/` は legacy として残置。vault既定を `${LOOMLOG_VAULT:-./.loomlog-vault}` にしサンドボックス書込を担保。各 integration の `scan codex` → `scan all` に更新
+- [x] テスト 31件(extractCommits負例 + 各アダプタ follow-up prompt + buildReport follow-up)・typecheck pass・report/scan 実データスモーク
+
+### v0.4 残・候補(次の価値)
+- [ ] **report renderText の整形**: follow-up を全部「意図:」で出すのは冗長。Daily同様に先頭/追加で出し分け(JSONは現状でOK・人間ターミナル表示のみの問題)
+- [ ] **vault分裂の注意喚起**: `LOOMLOG_VAULT` 未設定時 Claude=`~/loomlog` / Codex=`./.loomlog-vault` に分かれる。横断性のため init で env設定を強く促す(README追記 or init出力強化)
 - [ ] **再発する詰まり**: error fingerprint(失敗テキストの正規化署名)をキャプチャ → 「別エージェントでも同じ失敗」検出。AAR/Gibbsの分析が強くなる
-- [ ] **関心ドリフト**: 全プロンプト要旨(promptTurns)+ 宣言intent vs 実時間配分
+- [ ] **関心ドリフト**: 宣言intent vs 実時間配分(promptTurns捕捉は v0.4 で完了 → 次は分析)
 - [ ] agent fit profile / marker(decision/root cause/TODO)抽出 / MCP 自由問い合わせ
 
 ## v2(種は撒く・今は作らない)

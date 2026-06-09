@@ -78,9 +78,16 @@ export function tally(items: string[]): Record<string, number> {
  * Handles `-m "..."`, `-m '...'`, `-m $'...'`, and heredoc bodies
  * (`git commit -m "$(cat <<'EOF' ... EOF)"` / `git commit -F - <<EOF ... EOF`).
  * Returns the first line of each commit message found.
+ *
+ * Only fires on a real `git … commit` *invocation* at a command boundary, so that a
+ * literal "git commit" inside another command's quoted string (e.g. `echo "git commit -m x"`
+ * or a test/grep argument) is not mistaken for a commit.
  */
 export function extractCommits(cmd: string): string[] {
-  if (!/\bgit\b/.test(cmd) || !/\bcommit\b/.test(cmd)) return [];
+  const invocation = /(?:^|[\n;&|(])\s*(?:[A-Za-z_]\w*=\S+\s+)*(?:sudo\s+)?git\b[^\n;|&]*?\bcommit\b/.exec(cmd);
+  if (!invocation) return [];
+  // Focus extraction on the part from the `git … commit` token onward.
+  cmd = cmd.slice(invocation.index);
   const firstLine = (s: string): string => s.split(/\r?\n/).map((x) => x.trim()).find(Boolean) ?? "";
   const out: string[] = [];
 

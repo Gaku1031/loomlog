@@ -1,9 +1,12 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
+import { parseClaudeTranscript } from "./adapters/claude.ts";
 import { parseCodexRollout } from "./adapters/codex.ts";
 import { parseGeminiLogs } from "./adapters/gemini.ts";
 import { captureSession } from "./store.ts";
+import { SCHEMA_VERSION } from "./types.ts";
+import { localDate } from "./util.ts";
 
 export interface ScanSummary {
   found: number;
@@ -13,6 +16,7 @@ export interface ScanSummary {
 }
 
 const codexSessionsDir = () => join(homedir(), ".codex", "sessions");
+const claudeProjectsDir = () => join(homedir(), ".claude", "projects");
 const geminiTmpDir = () => join(homedir(), ".gemini", "tmp");
 
 /** All rollout-*.jsonl under ~/.codex/sessions (recursive). */
@@ -25,6 +29,16 @@ function listCodexRollouts(): string[] {
       const b = basename(p);
       return b.startsWith("rollout-") && b.endsWith(".jsonl");
     })
+    .map((p) => join(root, p));
+}
+
+/** All Claude Code transcripts under ~/.claude/projects (recursive). */
+function listClaudeTranscripts(): string[] {
+  const root = claudeProjectsDir();
+  if (!existsSync(root)) return [];
+  return readdirSync(root, { recursive: true })
+    .map(String)
+    .filter((p) => p.endsWith(".jsonl") && !p.split("/").includes("subagents"))
     .map((p) => join(root, p));
 }
 
@@ -58,6 +72,53 @@ function saveScanned(statePath: string, data: Record<string, string>): void {
   writeFileSync(statePath, JSON.stringify(data, null, 2) + "\n");
 }
 
+function scanSignature(mtimeMs: number, size: number): string {
+  return `${SCHEMA_VERSION}:${mtimeMs}:${size}`;
+}
+
+/**
+ * Opportunistic scan of Claude Code transcripts. The Stop hook is still the
+ * primary capture path, but scanning lets report-time refresh pick up schema
+ * upgrades and missed hook captures while the raw transcripts still exist.
+ */
+export async function scanClaude(vault: string, opts: { since?: string } = {}): Promise<ScanSummary> {
+  const statePath = join(vault, ".loomlog", "scanned.json");
+  const scanned = loadScanned(statePath);
+  const summary: ScanSummary = { found: 0, captured: 0, skipped: 0, errors: 0 };
+
+  for (const path of listClaudeTranscripts()) {
+    let sig: string;
+    try {
+      const st = statSync(path);
+      if (opts.since && localDate(new Date(st.mtimeMs).toISOString()) < opts.since) continue;
+      sig = scanSignature(st.mtimeMs, st.size);
+    } catch {
+      summary.errors++;
+      continue;
+    }
+    summary.found++;
+    if (scanned[path] === sig) {
+      summary.skipped++;
+      continue;
+    }
+    try {
+      const rec = await parseClaudeTranscript(path);
+      if (rec && (!opts.since || rec.date >= opts.since)) {
+        captureSession(vault, rec);
+        summary.captured++;
+      } else {
+        summary.skipped++;
+      }
+      scanned[path] = sig;
+    } catch {
+      summary.errors++;
+    }
+  }
+
+  saveScanned(statePath, scanned);
+  return summary;
+}
+
 /**
  * Lazy scan of Codex sessions. Codex never auto-deletes logs, so we ingest on
  * demand. Dedup is by file mtime (one rollout == one session); a still-growing
@@ -77,7 +138,7 @@ export async function scanCodex(vault: string, opts: { since?: string } = {}): P
     let sig: string;
     try {
       const st = statSync(path);
-      sig = `${st.mtimeMs}:${st.size}`; // size guards against a grown log with an unchanged mtime
+      sig = scanSignature(st.mtimeMs, st.size); // size guards against a grown log with an unchanged mtime
     } catch {
       summary.errors++;
       continue;

@@ -4,3 +4,4 @@ dist/
 .DS_Store
 # local test vaults
 tmp-vault*/
+.loomlog-vault/

@@ -1,7 +1,7 @@
 export type AgentId = "claude-code" | "codex" | "gemini";
 
 /** Bumped when the SessionRecord shape changes, so future versions can migrate the store. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * One captured agent session, normalized across agents.
@@ -26,6 +26,8 @@ export interface SessionRecord {
   activeMin: number;
   /** First genuine human prompt, truncated + redacted. The session's "intent". */
   intent: string;
+  /** Genuine human prompts in chronological order, truncated + redacted. */
+  prompts?: string[];
   /** Files written/edited (paths only, never contents), redacted. */
   files: string[];
   /** Total shell commands run. */

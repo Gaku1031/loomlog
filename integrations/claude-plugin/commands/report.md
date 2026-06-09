@@ -2,7 +2,7 @@
 description: loomlog — 今日の横断作業レポート
 ---
 
-まず `loomlog scan codex --since $(date +%F)` を実行して当日のCodexセッションを取り込み、続いて `loomlog report --json` を実行してください。返ったJSONを基に、**今日の日報**を日本語で書きます。
+まず `loomlog scan all --since $(date +%F)` を実行して当日のセッションを更新し、続いて `loomlog report --json` を実行してください。返ったJSONを基に、**今日の日報**を日本語で書きます。
 
 - プロジェクトごとに: 取り組んだこと(意図)・主な変更・成果(commits があれば)
 - 余計な前置きや統計の羅列はしない。簡潔に

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { captureFile, captureHook } from "./capture.ts";
-import { scanCodex, scanGemini, type ScanSummary } from "./scan.ts";
+import { scanClaude, scanCodex, scanGemini, type ScanSummary } from "./scan.ts";
 import { buildReport, renderText, buildPatterns, renderPatterns, type ReportOptions } from "./report.ts";
 import { buildReflection, saveReflection, isTemplate, FRAMEWORKS, type Template } from "./reflect.ts";
 import { initVault, wireClaudeHook } from "./init.ts";
@@ -21,8 +21,9 @@ Usage:
       Parse one agent session log into the vault (mechanical, no LLM).
       --hook reads a Claude Stop-hook payload (transcript_path) from stdin.
 
-  loomlog scan [codex|gemini|all] [--vault <dir>] [--since <YYYY-MM-DD>]
-      Ingest sessions from Codex (~/.codex/sessions) and/or Gemini (~/.gemini/tmp).
+  loomlog scan [claude|codex|gemini|all] [--vault <dir>] [--since <YYYY-MM-DD>]
+      Ingest sessions from Claude (~/.claude/projects), Codex (~/.codex/sessions),
+      and/or Gemini (~/.gemini/tmp).
       Lazy + idempotent. Default agent: all.
 
   loomlog report [--date <YYYY-MM-DD>] [-w|--week] [--since <d>] [--until <d>]
@@ -155,20 +156,21 @@ async function main(): Promise<void> {
       console.log("next:");
       console.log(`  export LOOMLOG_VAULT="${vault}"`);
       if (r.agents.claudeCode) console.log("  • Claude Code: install the plugin (integrations/claude-plugin) or run: loomlog init --wire-claude");
-      if (r.agents.codex) console.log("  • Codex: copy integrations/codex/prompts/loomlog.md → ~/.codex/prompts/ ; capture via `loomlog scan codex`");
+      if (r.agents.codex) console.log("  • Codex: copy integrations/codex/skills/loomlog → ~/.codex/skills/loomlog ; invoke with `$loomlog` or plain language");
       if (r.agents.gemini) console.log("  • Gemini: copy integrations/gemini/commands/report.toml → ~/.gemini/commands/ (experimental)");
       break;
     }
     case "scan": {
       const agent = positional[0] ?? "all";
-      if (!["codex", "gemini", "all"].includes(agent)) {
-        console.error(`scan supports: codex | gemini | all (got "${agent}")`);
+      if (!["claude", "codex", "gemini", "all"].includes(agent)) {
+        console.error(`scan supports: claude | codex | gemini | all (got "${agent}")`);
         process.exit(1);
       }
       validateDateFlags(flags);
       const vault = resolveVault(flags.vault);
       const line = (name: string, s: ScanSummary) =>
         console.log(`✓ ${name} scan: ${s.captured} captured, ${s.skipped} skipped, ${s.errors} errors (${s.found} found)`);
+      if (agent === "claude" || agent === "all") line("claude", await scanClaude(vault, { since: flags.since }));
       if (agent === "codex" || agent === "all") line("codex", await scanCodex(vault, { since: flags.since }));
       if (agent === "gemini" || agent === "all") line("gemini", scanGemini(vault, { since: flags.since }));
       console.log(`  vault: ${vault}`);

@@ -1,7 +1,7 @@
 description = "loomlog: academic reflection (WSN/Gibbs/AAR/KPT/YWT)"
 
 prompt = """
-Run `loomlog scan gemini` then `loomlog reflect --template {{args}} --json` (default template: wsn).
+Run `loomlog scan all --since $(date +%F)` then `loomlog reflect --template {{args}} --json` (default template: wsn).
 Facilitate an interactive reflection grounded in an academic framework. From the JSON:
 1. Present the factual "What" stages (fromFacts:true) from facts.report — per project: intent,
    key changes, work type, 成果(commits). Concise.

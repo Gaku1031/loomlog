@@ -18,6 +18,8 @@ test("claude adapter: intent, commands, files, tools, blockers", async () => {
     { type: "user", timestamp: "2026-06-08T12:00:00.000Z", sessionId: "s1", cwd: "/home/u/proj", message: { role: "user", content: "<system-reminder>noise</system-reminder>" } },
     // genuine prompt
     { type: "user", timestamp: "2026-06-08T12:00:01.000Z", sessionId: "s1", cwd: "/home/u/proj", message: { role: "user", content: "add unit tests" } },
+    // follow-up prompt in the same transcript
+    { type: "user", timestamp: "2026-06-08T12:00:01.500Z", sessionId: "s1", cwd: "/home/u/proj", message: { role: "user", content: "cover the edge case too" } },
     { type: "assistant", timestamp: "2026-06-08T12:00:02.000Z", message: { role: "assistant", content: [{ type: "tool_use", name: "Bash", input: { command: "npm test" } }] } },
     { type: "assistant", timestamp: "2026-06-08T12:00:03.000Z", message: { role: "assistant", content: [{ type: "tool_use", name: "Edit", input: { file_path: "/home/u/proj/src/x.ts" } }] } },
     { type: "assistant", timestamp: "2026-06-08T12:00:03.500Z", message: { role: "assistant", content: [{ type: "tool_use", name: "Bash", input: { command: 'git commit -m "test: add unit tests"' } }] } },
@@ -30,6 +32,7 @@ test("claude adapter: intent, commands, files, tools, blockers", async () => {
   assert.equal(rec!.agent, "claude-code");
   assert.equal(rec!.project, "proj");
   assert.equal(rec!.intent, "add unit tests");
+  assert.deepEqual(rec!.prompts, ["add unit tests", "cover the edge case too"]);
   assert.equal(rec!.commandCount, 2);
   assert.equal(rec!.commandCats.npm, 1);
   assert.equal(rec!.commandCats.git, 1);

@@ -48,6 +48,13 @@ test("extractCommits pulls subject lines from every quoting form", () => {
   // not a commit / no message
   assert.deepEqual(extractCommits("git status"), []);
   assert.deepEqual(extractCommits("npm test"), []);
+  // a literal "git commit" inside another command's quoted arg is NOT an invocation
+  assert.deepEqual(extractCommits('echo "git commit -m x"'), []);
+  assert.deepEqual(extractCommits('grep -n "git commit" file'), []);
+  assert.deepEqual(extractCommits('rg "git commit -m" .'), []);
+  // a real invocation at a command boundary (after &&, with an env prefix) still fires
+  assert.deepEqual(extractCommits('cd /foo && git commit -m "real"'), ["real"]);
+  assert.deepEqual(extractCommits('GIT_AUTHOR=x git commit -m "env prefix"'), ["env prefix"]);
 });
 
 test("isValidDate rejects impossible dates", () => {

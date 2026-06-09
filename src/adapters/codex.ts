@@ -102,11 +102,11 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
   const commandCatList: string[] = [];
   const commits = new Set<string>();
   const tools = new Set<string>();
+  const prompts: string[] = [];
   let commandCount = 0;
   let errorCount = 0;
   let id: string | undefined;
   let cwd: string | undefined;
-  let intent: string | undefined;
 
   const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
   for await (const line of rl) {
@@ -129,9 +129,9 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
     const ptype: string | undefined = p.type;
     const name: string | undefined = p.name;
 
-    if (ptype === "message" && p.role === "user" && !intent) {
+    if (ptype === "message" && p.role === "user") {
       const text = cleanIntent(messageText(p.content));
-      if (text) intent = text;
+      if (text) prompts.push(text);
     } else if ((ptype === "function_call" || ptype === "custom_tool_call") && name === "apply_patch") {
       // apply_patch shows up as a custom_tool_call (input=patch) or a function_call (arguments JSON).
       tools.add("apply_patch");
@@ -164,6 +164,8 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
   const fileList = [...files]
     .map((f) => redactClip(isAbsolute(f) ? (relative(wd, f).startsWith("..") ? basename(f) : relative(wd, f)) : normalize(f), 200))
     .slice(0, 40);
+  const promptList = prompts.map((p) => redactClip(p, 180)).filter(Boolean).slice(0, 24);
+  const intent = promptList[0];
 
   return {
     id: id ?? basename(path).replace(/^rollout-/, "").replace(/\.jsonl$/, ""),
@@ -174,7 +176,8 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
     start,
     end,
     activeMin: activeMinutes(timestamps),
-    intent: intent ? redactClip(intent) : "(no prompt captured)",
+    intent: intent ?? "(no prompt captured)",
+    prompts: promptList,
     files: fileList,
     commandCount,
     commandCats: tally(commandCatList),

@@ -21,8 +21,8 @@ captures them promptly into durable Markdown you own, and lets you ask
 
 - **Capture is mechanical (no LLM) → 0 tokens.** It just parses logs the agents
   already write. Secrets are redacted before anything is stored.
-- **Reports run inside your agent** via a slash command — the host model formats
-  them, so there's **no API key and no extra cost**.
+- **Reports run inside your agent** via that agent's native integration — the host
+  model formats them, so there's **no API key and no extra cost**.
 - **Storage is plain Markdown** in a folder. Point it at an Obsidian vault and the
   graph (Daily ↔ Project ↔ Topic) lights up automatically.
 
@@ -31,12 +31,12 @@ captures them promptly into durable Markdown you own, and lets you ask
 ```
 agent session logs ──(capture, mechanical, 0 tokens)──▶ <vault>/Daily/*.md , Projects/*.md
                                                               │
-                                   /report (slash command) ───┘──▶ host model writes your report
+                                  agent integration command ──┘──▶ host model writes your report
 ```
 
 | Agent | Auto-deletes logs? | Capture strategy |
 |-------|--------------------|------------------|
-| Claude Code | Yes (30d default) | `Stop` hook → capture immediately |
+| Claude Code | Yes (30d default) | `Stop` hook → capture immediately; report-time scan can refresh recent transcripts |
 | Codex | No | lazy scan at report time |
 | Gemini CLI | Yes (on by default) | scheduled daily scan *(experimental)* |
 
@@ -58,8 +58,8 @@ messages straight from the logs — your own "what I shipped" log, 0 tokens).
 ## Reflect — structured retrospection, grounded in the research
 
 Recall is *what*; reflection is *so what / now what*. Reflection runs **inside your AI agent**
-(Claude Code / Codex / Gemini) as a slash command — because the back-and-forth needs a model,
-and loomlog's rule is *the host model does it, no API key*. loomlog mechanically fills the
+(Claude Code / Codex / Gemini) through that agent's native command/skill mechanism — because
+the back-and-forth needs a model, and loomlog's rule is *the host model does it, no API key*. loomlog mechanically fills the
 factual layer; the agent walks you through a real reflective-practice framework; the result is
 saved to `Reflections/<date>.md` (a folder capture never overwrites).
 
@@ -145,16 +145,22 @@ cp integrations/claude-plugin/commands/*.md ~/.claude/commands/loomlog/
 Use the plugin *or* this — not both, or the Stop hook runs twice (harmless but redundant).
 </details>
 
-### Codex — no auto-delete, so a lazy scan suffices (no hook needed)
+### Codex — install the skill (current Codex)
 
 ```bash
-mkdir -p ~/.codex/prompts
-cp integrations/codex/prompts/loomlog.md ~/.codex/prompts/loomlog.md
-cp integrations/codex/prompts/loomlog-reflect.md ~/.codex/prompts/loomlog-reflect.md
+mkdir -p ~/.codex/skills
+cp -R integrations/codex/skills/loomlog ~/.codex/skills/loomlog
 ```
 
-Run **`/loomlog`** (report) or **`/loomlog-reflect`** (reflection) in Codex, or
-`loomlog scan codex && loomlog report` anytime.
+Current Codex skills are **not custom slash commands**, so `/loomlog` will not appear in the
+slash picker. Invoke the skill with **`$loomlog`** or plain language such as
+"loomlogで今日の日報を書いて" or "今日の振り返りを作って".
+
+Codex 0.117+ removed `~/.codex/prompts` custom slash prompts, so the skill is the supported
+integration path. For old Codex versions, legacy prompt files remain in
+[`integrations/codex/prompts/`](./integrations/codex/prompts/).
+
+You can also run `loomlog scan all && loomlog report` anytime in a terminal.
 
 ### Gemini CLI — experimental (logs auto-delete by default → capture via scan)
 

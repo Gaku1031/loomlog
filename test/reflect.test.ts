@@ -14,6 +14,7 @@ function seedVault(): string {
     id: "s1", agent: "codex", project: "proj", cwd: "~/proj",
     date: "2026-06-08", start: "2026-06-08T01:00:00.000Z", end: "2026-06-08T03:00:00.000Z",
     activeMin: 120, intent: "build the thing", files: ["src/a.ts"],
+    prompts: ["build the thing", "review the thing", "ship the thing"],
     commandCount: 10, commandCats: { git: 3, npm: 5, rg: 2 }, tools: ["shell_command"],
     errorCount: 4, commits: ["feat: ship the thing"], sourcePath: "~/.codex/x.jsonl", schemaVersion: 1,
   };
@@ -62,6 +63,12 @@ test("tolerates legacy records captured before the commits field existed", () =>
   assert.doesNotThrow(() => buildPatterns(v, { since: "2026-06-01", until: "2026-06-30" }));
   const rep = buildReport(v, { date: "2026-06-08" });
   assert.deepEqual(rep.projects[0]!.commits, []);
+});
+
+test("buildReport includes follow-up prompts within a session", () => {
+  const v = seedVault();
+  const rep = buildReport(v, { date: "2026-06-08", project: "proj" });
+  assert.deepEqual(rep.projects[0]!.intents, ["build the thing", "review the thing", "ship the thing"]);
 });
 
 test("buildReflection returns facts + the framework's stages", () => {

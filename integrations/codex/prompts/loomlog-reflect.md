@@ -1,4 +1,4 @@
-Run `loomlog scan codex --since $(date +%F)`, then `loomlog reflect --template ${1:-wsn} --json`.
+Run `loomlog scan all --since $(date +%F) --vault "${LOOMLOG_VAULT:-./.loomlog-vault}"`, then `loomlog reflect --template ${1:-wsn} --json --vault "${LOOMLOG_VAULT:-./.loomlog-vault}"`.
 
 Facilitate an interactive reflection grounded in an academic reflective-practice framework
 (default: What / So What / Now What — Borton→Driscoll). From the returned JSON:
@@ -12,5 +12,5 @@ Facilitate an interactive reflection grounded in an academic reflective-practice
    `printf '%s' "<reflection>" | loomlog reflect-save --date <range.to> --template <id>`
 4. Report the saved path (Reflections/<date>.md — never overwritten by capture).
 
-Assumes `loomlog` is installed globally and LOOMLOG_VAULT is set (defaults to ~/loomlog).
+Assumes `loomlog` is installed globally. If `LOOMLOG_VAULT` is unset, Codex uses `./.loomlog-vault` so the sandbox can write the vault.
 Templates: wsn (daily) · gibbs (weekly) · aar (blocker-heavy) · kpt · ywt.

@@ -58,6 +58,11 @@ export function parseGeminiLogs(path: string): SessionRecord[] {
     const start = timestamps[0]!;
     const end = timestamps[timestamps.length - 1]!;
     const firstMsg = group.find((e) => typeof e.message === "string" && e.message.trim())?.message ?? "";
+    const prompts = group
+      .map((e) => (typeof e.message === "string" ? e.message.trim() : ""))
+      .filter(Boolean)
+      .map((m) => redactClip(m, 180))
+      .slice(0, 24);
     records.push({
       id,
       agent: "gemini",
@@ -68,6 +73,7 @@ export function parseGeminiLogs(path: string): SessionRecord[] {
       end,
       activeMin: activeMinutes(timestamps),
       intent: firstMsg ? redactClip(firstMsg) : "(no prompt captured)",
+      prompts,
       files: [],
       commandCount: 0,
       commandCats: {},

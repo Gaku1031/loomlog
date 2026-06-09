@@ -1,0 +1,6 @@
+interface:
+  display_name: "loomlog"
+  short_description: "Cross-agent daily reports and reflection"
+  default_prompt: "Use $loomlog to create today's cross-agent work report."
+policy:
+  allow_implicit_invocation: true

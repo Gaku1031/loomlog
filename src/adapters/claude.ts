@@ -29,10 +29,10 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
   const commandCatList: string[] = [];
   const commits = new Set<string>();
   const tools = new Set<string>();
+  const prompts: string[] = [];
   let commandCount = 0;
   let errorCount = 0;
   let sessionId: string | undefined;
-  let intent: string | undefined;
 
   const rl = createInterface({ input: createReadStream(path), crlfDelay: Infinity });
   for await (const line of rl) {
@@ -50,10 +50,10 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
     const msg = o.message;
     if (!msg || !msg.role) continue;
 
-    // Intent: first genuine human prompt (string content on a user turn).
-    // Keep the full text here; redaction + clipping happen at record build (redact-before-truncate).
-    if (o.type === "user" && typeof msg.content === "string" && !intent && isHumanPrompt(msg.content)) {
-      intent = msg.content.trim();
+    // Prompts: genuine human string turns. Keep full text here; redaction + clipping
+    // happen at record build (redact-before-truncate).
+    if (o.type === "user" && typeof msg.content === "string" && isHumanPrompt(msg.content)) {
+      prompts.push(msg.content.trim());
     }
 
     if (Array.isArray(msg.content)) {
@@ -92,6 +92,8 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
       return redactClip(rel.startsWith("..") ? basename(f) : rel, 200);
     })
     .slice(0, 40);
+  const promptList = prompts.map((p) => redactClip(p, 180)).filter(Boolean).slice(0, 24);
+  const intent = promptList[0];
 
   return {
     id: sessionId ?? basename(path).replace(/\.jsonl$/, ""),
@@ -102,7 +104,8 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
     start,
     end,
     activeMin: activeMinutes(timestamps),
-    intent: intent ? redactClip(intent) : "(no prompt captured)",
+    intent: intent ?? "(no prompt captured)",
+    prompts: promptList,
     files: fileList,
     commandCount,
     commandCats: tally(commandCatList),
