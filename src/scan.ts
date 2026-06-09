@@ -44,7 +44,7 @@ function datePartOf(path: string): string | null {
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
-function loadScanned(statePath: string): Record<string, number> {
+function loadScanned(statePath: string): Record<string, string> {
   if (!existsSync(statePath)) return {};
   try {
     return JSON.parse(readFileSync(statePath, "utf8"));
@@ -53,7 +53,7 @@ function loadScanned(statePath: string): Record<string, number> {
   }
 }
 
-function saveScanned(statePath: string, data: Record<string, number>): void {
+function saveScanned(statePath: string, data: Record<string, string>): void {
   mkdirSync(join(statePath, ".."), { recursive: true });
   writeFileSync(statePath, JSON.stringify(data, null, 2) + "\n");
 }
@@ -74,14 +74,15 @@ export async function scanCodex(vault: string, opts: { since?: string } = {}): P
       if (d && d < opts.since) continue;
     }
     summary.found++;
-    let mtimeMs: number;
+    let sig: string;
     try {
-      mtimeMs = statSync(path).mtimeMs;
+      const st = statSync(path);
+      sig = `${st.mtimeMs}:${st.size}`; // size guards against a grown log with an unchanged mtime
     } catch {
       summary.errors++;
       continue;
     }
-    if (scanned[path] === mtimeMs) {
+    if (scanned[path] === sig) {
       summary.skipped++;
       continue;
     }
@@ -93,7 +94,7 @@ export async function scanCodex(vault: string, opts: { since?: string } = {}): P
       } else {
         summary.skipped++;
       }
-      scanned[path] = mtimeMs;
+      scanned[path] = sig;
     } catch {
       summary.errors++;
     }

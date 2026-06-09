@@ -32,6 +32,22 @@
 - [ ] Gemini 日次スキャンの **自動化**(launchd/cron インストーラ。現状は手動 or 手動cron設定)
 - [x] GitHub 公開(Gaku1031/loomlog)＋ npm publish(loomlog@0.1.0)(2026-06-09)
 
+## v0.2.0: 信頼性 & CI/CD パス(2026-06-09 — Codex独立レビュー+実ログ検証を反映)
+- [x] **Codex アダプタの実害バグ修正**(実ログ実証): `shell_command`(コマンド未計上→計上)・プレーン `Exit code: N` 出力(詰まり未検出→検出)・`apply_patch` が custom_tool_call の場合のファイル抽出・先頭user msgの合成ブロックを「丸ごと破棄」せず除去して実依頼をintentに。同一rolloutで commandCount 0→162 / errorCount 0→26 / files 0→33 を確認
+- [x] **秘匿強化**: redact→正規化→truncate の順に統一(`redactClip`。truncate先行で秘密が境界分断され漏れる問題を解消)。パターン追加(github_pat/glpat/npm/stripe/notion/hf/Bearer/webhook/ya29/ASIA/URL埋込資格情報)。JSON `"key":"val"` 形式もマスク。`cwd`/`sourcePath` を `~` 短縮しユーザー名漏洩を低減
+- [x] **ストア堅牢化**: 全書込を atomic(temp+rename)化し Stopフック/scan 同時実行での破損を防止。セッションキーを `agent:id` 名前空間化(旧 bare-id を移行削除)。scan dedup を mtime+size に
+- [x] **CLI 検証**: 値必須flag欠落をエラー化(`--date --json`)/日付の実在&範囲検証/不明flag検出。`src/args.ts` に分離してテスト可能化
+- [x] **テスト導入**(node:test, 23件): adapters(fixtures)/redact/args/store idempotency&名前空間/util 日付演算。`npm test` + CI
+- [x] **CI/CD**: `.github/workflows/ci.yml`(push/PRで typecheck+test, Node 20/22)＋`publish.yml`(main push→version差分検知→OIDC trusted publish+provenance+tag/Release)。`RELEASING.md` に初期設定手順
+- [x] ドキュメント整合: README status 更新 / cli.ts の `loomlog.md` 案内修正 / `capture --agent gemini` 実装 / weekly.md の macOS専用 `date -v` 除去
+
+### v0.2 残(Codexレビューで挙がった未着手・次サイクル)
+- [ ] **真の書込ロック**(lockfile)で read-modify-write の lost-update を排除(atomic化で破損は解消済み、競合更新の取りこぼしは未解消)
+- [ ] スキーマに `schemaVersion`/`parserVersion`/`projectId=hash(cwd)`/`daySpans`(深夜またぎ分割)を追加 → v2インサイトの集計・移行を安くする
+- [ ] 同名repo統合の回避(`projectId` 分離)/ 絶対パス raw 保存の opt-in 設定
+- [ ] scan の日付抽出を Windows パス対応(`path.sep`非依存)/ 成長中ログの安定化待ち
+- [ ] Gemini 日次スキャンの **自動化**(launchd/cron インストーラ)
+
 ## v2(種は撒く・今は作らない)
 - [ ] インサイト: 再発する詰まり / 関心ドリフト / 学びの結晶化(数値シグナル→LLM解釈の二段)
 - [ ] MCP サーバ(過去の自由問い合わせ)

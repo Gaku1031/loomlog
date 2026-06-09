@@ -1,6 +1,22 @@
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 
+/** Replace a leading $HOME with `~` so stored paths don't leak the username. */
+export function homeShorten(p: string): string {
+  const h = homedir();
+  if (p === h) return "~";
+  return p.startsWith(h + "/") ? "~" + p.slice(h.length) : p;
+}
+
+/** True for a real calendar date in strict YYYY-MM-DD form (e.g. rejects 2026-13-40). */
+export function isValidDate(s: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(y, mo - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
+}
+
 /** Local YYYY-MM-DD for an ISO timestamp (uses the machine's timezone). */
 export function localDate(iso: string): string {
   const d = new Date(iso);

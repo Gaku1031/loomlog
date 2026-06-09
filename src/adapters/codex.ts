@@ -1,20 +1,29 @@
 import { createReadStream } from "node:fs";
-import { basename, relative } from "node:path";
+import { basename, isAbsolute, normalize, relative } from "node:path";
 import { createInterface } from "node:readline";
 import type { SessionRecord } from "../types.ts";
-import { redact } from "../redact.ts";
-import { activeMinutes, commandCategory, localDate, tally } from "../util.ts";
+import { redactClip } from "../redact.ts";
+import { activeMinutes, commandCategory, homeShorten, localDate, tally } from "../util.ts";
 
 const PATCH_FILE_RE = /^\*\*\* (?:Update|Add|Delete) File: (.+)$/gm;
 
-/** Skip Codex's injected synthetic first messages (AGENTS.md / environment / instructions blocks). */
-function isHumanPrompt(text: string): boolean {
-  const t = text.trimStart();
-  if (!t) return false;
-  if (t.startsWith("#") && t.includes("AGENTS.md")) return false;
-  if (t.startsWith("<environment_context>") || t.startsWith("<user_instructions>")) return false;
-  if (t.startsWith("<INSTRUCTIONS>")) return false;
-  return true;
+/**
+ * Strip Codex's injected synthetic blocks (AGENTS.md / environment / instructions)
+ * and return the residual real request, or "" if nothing real remains. Codex often
+ * delivers the synthetic preamble and the real prompt as separate user messages, but
+ * sometimes bundles them — stripping (rather than dropping the whole message) keeps
+ * the intent in both shapes.
+ */
+function cleanIntent(text: string): string {
+  let t = text
+    .replace(/<environment_context>[\s\S]*?<\/environment_context>/gi, " ")
+    .replace(/<user_instructions>[\s\S]*?<\/user_instructions>/gi, " ")
+    .replace(/<INSTRUCTIONS>[\s\S]*?<\/INSTRUCTIONS>/gi, " ")
+    .replace(/^#\s*AGENTS\.md[^\n]*$/gim, " ");
+  t = t.trim();
+  // A bare AGENTS.md header with nothing else is not a real prompt.
+  if (/^#\s*AGENTS\.md/i.test(text.trimStart()) && !t) return "";
+  return t;
 }
 
 /** Pull readable text out of a Codex message content array. */
@@ -27,8 +36,12 @@ function messageText(content: unknown): string {
     .trim();
 }
 
-/** Extract the shell command string from an exec_command / shell function_call. */
-function execCommand(name: string, args: unknown): string | null {
+/**
+ * Extract the shell command string from a function_call.
+ * Codex has used several names over time: `exec_command` ({cmd}), `shell` and the
+ * newer `shell_command` ({command} as a string or an argv array).
+ */
+function execCommand(name: string | undefined, args: unknown): string | null {
   if (typeof args !== "string") return null;
   let parsed: any;
   try {
@@ -36,13 +49,47 @@ function execCommand(name: string, args: unknown): string | null {
   } catch {
     return null;
   }
-  if (name === "exec_command" && typeof parsed?.cmd === "string") return parsed.cmd;
-  if (name === "shell") {
-    const c = parsed?.command;
-    if (Array.isArray(c)) return c.join(" ");
-    if (typeof c === "string") return c;
-  }
+  const raw = name === "exec_command" ? parsed?.cmd : parsed?.command;
+  if (Array.isArray(raw)) return raw.join(" ");
+  if (typeof raw === "string") return raw;
   return null;
+}
+
+/** Get the raw patch body from an apply_patch call (custom_tool_call `input` or function_call `arguments`). */
+function patchBody(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  if (raw.includes("*** Begin Patch") || /^\*\*\* (?:Update|Add|Delete) File:/m.test(raw)) return raw;
+  try {
+    const j = JSON.parse(raw);
+    if (typeof j?.input === "string") return j.input;
+    if (typeof j?.patch === "string") return j.patch;
+  } catch {
+    /* not JSON — treat as raw */
+  }
+  return raw;
+}
+
+/** Best-effort "this tool call failed" signal from a tool output (string or structured). */
+function isFailureOutput(output: unknown): boolean {
+  if (typeof output === "string") {
+    const m = output.match(/^Exit code:\s*(-?\d+)/m); // newer plain-text shell output
+    if (m) return Number(m[1]) !== 0;
+    try {
+      const j = JSON.parse(output); // older structured output
+      const c = j?.metadata?.exit_code;
+      if (typeof c === "number") return c !== 0;
+    } catch {
+      /* not JSON */
+    }
+    // apply_patch failures surface as a leading "...failed" line.
+    if (/^apply_patch[\s\S]*?\bfailed\b/i.test(output)) return true;
+    return false;
+  }
+  if (output && typeof output === "object") {
+    const c = (output as any)?.metadata?.exit_code;
+    if (typeof c === "number") return c !== 0;
+  }
+  return false;
 }
 
 /**
@@ -78,31 +125,31 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
     }
     if (o.type !== "response_item") continue;
     const p = o.payload ?? {};
+    const ptype: string | undefined = p.type;
+    const name: string | undefined = p.name;
 
-    if (p.type === "message" && p.role === "user" && !intent) {
-      const text = messageText(p.content);
-      if (isHumanPrompt(text)) intent = text.trim().replace(/\s+/g, " ").slice(0, 120);
-    } else if (p.type === "function_call") {
-      tools.add(p.name ?? "function_call");
-      const cmd = execCommand(p.name, p.arguments);
+    if (ptype === "message" && p.role === "user" && !intent) {
+      const text = cleanIntent(messageText(p.content));
+      if (text) intent = text;
+    } else if ((ptype === "function_call" || ptype === "custom_tool_call") && name === "apply_patch") {
+      // apply_patch shows up as a custom_tool_call (input=patch) or a function_call (arguments JSON).
+      tools.add("apply_patch");
+      for (const m of patchBody(p.input ?? p.arguments).matchAll(PATCH_FILE_RE)) files.add(m[1]!.trim());
+    } else if (ptype === "function_call") {
+      tools.add(name ?? "function_call");
+      const cmd = execCommand(name, p.arguments);
       if (cmd !== null) {
         commandCount++;
         commandCatList.push(commandCategory(cmd));
       }
-    } else if (p.name === "apply_patch" || p.type === "apply_patch") {
+    } else if (ptype === "custom_tool_call") {
+      tools.add(name ?? "custom_tool_call");
+    } else if (ptype === "apply_patch") {
+      // Legacy standalone form.
       tools.add("apply_patch");
-      const patch: string = p.input ?? p.arguments ?? "";
-      for (const m of patch.matchAll(PATCH_FILE_RE)) files.add(m[1]!.trim());
-    } else if (p.type === "custom_tool_call") {
-      tools.add(p.name ?? "custom_tool_call");
-    } else if (p.type === "function_call_output") {
-      // Best-effort blocker detection: non-zero exit code in the tool output.
-      try {
-        const out = typeof p.output === "string" ? JSON.parse(p.output) : p.output;
-        if (out?.metadata?.exit_code && out.metadata.exit_code !== 0) errorCount++;
-      } catch {
-        /* output not structured — skip */
-      }
+      for (const m of patchBody(p.input ?? p.arguments).matchAll(PATCH_FILE_RE)) files.add(m[1]!.trim());
+    } else if (ptype === "function_call_output" || ptype === "custom_tool_call_output") {
+      if (isFailureOutput(p.output)) errorCount++;
     }
   }
 
@@ -113,27 +160,24 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
   const wd = cwd ?? process.cwd();
 
   const fileList = [...files]
-    .map((f) => {
-      const rel = relative(wd, f);
-      return redact(rel.startsWith("..") ? basename(f) : rel);
-    })
+    .map((f) => redactClip(isAbsolute(f) ? (relative(wd, f).startsWith("..") ? basename(f) : relative(wd, f)) : normalize(f), 200))
     .slice(0, 40);
 
   return {
     id: id ?? basename(path).replace(/^rollout-/, "").replace(/\.jsonl$/, ""),
     agent: "codex",
     project: basename(wd) || "unknown",
-    cwd: wd,
+    cwd: homeShorten(wd),
     date: localDate(start),
     start,
     end,
     activeMin: activeMinutes(timestamps),
-    intent: intent ? redact(intent) : "(no prompt captured)",
+    intent: intent ? redactClip(intent) : "(no prompt captured)",
     files: fileList,
     commandCount,
     commandCats: tally(commandCatList),
     tools: [...tools].sort(),
     errorCount,
-    sourcePath: path,
+    sourcePath: homeShorten(path),
   };
 }

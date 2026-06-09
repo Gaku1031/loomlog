@@ -1,9 +1,9 @@
 import { createReadStream } from "node:fs";
-import { basename, relative } from "node:path";
+import { basename, isAbsolute, normalize, relative } from "node:path";
 import { createInterface } from "node:readline";
 import type { SessionRecord } from "../types.ts";
-import { redact } from "../redact.ts";
-import { activeMinutes, commandCategory, localDate, tally } from "../util.ts";
+import { redactClip } from "../redact.ts";
+import { activeMinutes, commandCategory, homeShorten, localDate, tally } from "../util.ts";
 
 const FILE_TOOLS = new Set(["Edit", "Write", "NotebookEdit", "MultiEdit"]);
 
@@ -50,8 +50,9 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
     if (!msg || !msg.role) continue;
 
     // Intent: first genuine human prompt (string content on a user turn).
+    // Keep the full text here; redaction + clipping happen at record build (redact-before-truncate).
     if (o.type === "user" && typeof msg.content === "string" && !intent && isHumanPrompt(msg.content)) {
-      intent = msg.content.trim().replace(/\s+/g, " ").slice(0, 120);
+      intent = msg.content.trim();
     }
 
     if (Array.isArray(msg.content)) {
@@ -68,7 +69,6 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
         }
       }
     }
-    if (o.toolUseResult?.is_error) errorCount++;
   }
 
   if (timestamps.length === 0) return null;
@@ -82,11 +82,12 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
   for (const [c, n] of cwdCounts) if (n > best) ((best = n), (cwd = c));
   const project = basename(cwd) || "unknown";
 
-  // Files: relative to cwd when possible, basename otherwise; redacted; capped.
+  // Files: relative to cwd when the path is absolute, normalized otherwise; redacted; capped.
   const fileList = [...files]
     .map((f) => {
+      if (!isAbsolute(f)) return redactClip(normalize(f), 200);
       const rel = relative(cwd, f);
-      return redact(rel.startsWith("..") ? basename(f) : rel);
+      return redactClip(rel.startsWith("..") ? basename(f) : rel, 200);
     })
     .slice(0, 40);
 
@@ -94,17 +95,17 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
     id: sessionId ?? basename(path).replace(/\.jsonl$/, ""),
     agent: "claude-code",
     project,
-    cwd,
+    cwd: homeShorten(cwd),
     date: localDate(start),
     start,
     end,
     activeMin: activeMinutes(timestamps),
-    intent: intent ? redact(intent) : "(no prompt captured)",
+    intent: intent ? redactClip(intent) : "(no prompt captured)",
     files: fileList,
     commandCount,
     commandCats: tally(commandCatList),
     tools: [...tools].sort(),
     errorCount,
-    sourcePath: path,
+    sourcePath: homeShorten(path),
   };
 }

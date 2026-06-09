@@ -1,5 +1,5 @@
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { DayFile, SessionRecord } from "./types.ts";
 
 /**
@@ -24,9 +24,26 @@ function readJson<T>(path: string, fallback: T): T {
   }
 }
 
+/**
+ * Atomic write: write to a temp file then rename over the target. rename(2) is
+ * atomic within a filesystem, so a concurrent Stop-hook capture + scan can never
+ * observe a half-written (corrupt) JSON/Markdown file. The pid in the temp name
+ * keeps two writers from clobbering each other's temp file.
+ */
+function writeAtomic(path: string, content: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  const tmp = `${path}.${process.pid}.tmp`;
+  writeFileSync(tmp, content);
+  renameSync(tmp, path);
+}
+
 function writeJson(path: string, data: unknown): void {
-  mkdirSync(join(path, ".."), { recursive: true });
-  writeFileSync(path, JSON.stringify(data, null, 2) + "\n");
+  writeAtomic(path, JSON.stringify(data, null, 2) + "\n");
+}
+
+/** Storage key for a session — namespaced by agent so ids can never collide across agents. */
+function sessionKey(rec: SessionRecord): string {
+  return `${rec.agent}:${rec.id}`;
 }
 
 function paths(vault: string) {
@@ -51,17 +68,20 @@ export interface CaptureResult {
 
 export function captureSession(vault: string, rec: SessionRecord): CaptureResult {
   const p = paths(vault);
+  const key = sessionKey(rec);
   const ingested = readJson<Record<string, string>>(p.ingested, {});
-  const already = rec.id in ingested;
+  const already = key in ingested || rec.id in ingested;
 
-  // 1) Upsert into the day file (keyed by session id → idempotent).
+  // 1) Upsert into the day file (keyed by agent:id → idempotent).
   const dayPath = join(p.days, `${rec.date}.json`);
   const day = readJson<DayFile>(dayPath, { date: rec.date, sessions: {} });
-  day.sessions[rec.id] = rec;
+  if (key !== rec.id) delete day.sessions[rec.id]; // migrate pre-namespacing bare-id entries
+  day.sessions[key] = rec;
   writeJson(dayPath, day);
 
   // 2) Mark ingested.
-  ingested[rec.id] = rec.sourcePath;
+  if (key !== rec.id) delete ingested[rec.id];
+  ingested[key] = rec.sourcePath;
   writeJson(p.ingested, ingested);
 
   // 3) Recompute this project's bucket for this date from the day file.
@@ -139,8 +159,7 @@ function renderDaily(vault: string, day: DayFile): void {
     body.push("");
   }
 
-  mkdirSync(p.dailyDir, { recursive: true });
-  writeFileSync(join(p.dailyDir, `${day.date}.md`), fm.concat(body).join("\n"));
+  writeAtomic(join(p.dailyDir, `${day.date}.md`), fm.concat(body).join("\n"));
 }
 
 function renderProject(vault: string, project: string, stat: ProjectStat): void {
@@ -166,6 +185,5 @@ function renderProject(vault: string, project: string, stat: ProjectStat): void 
     "",
   ];
 
-  mkdirSync(p.projectsDir, { recursive: true });
-  writeFileSync(join(p.projectsDir, `${project}.md`), out.join("\n"));
+  writeAtomic(join(p.projectsDir, `${project}.md`), out.join("\n"));
 }

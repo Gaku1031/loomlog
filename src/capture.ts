@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import type { AgentId } from "./types.ts";
 import { parseClaudeTranscript } from "./adapters/claude.ts";
 import { parseCodexRollout } from "./adapters/codex.ts";
+import { parseGeminiLogs } from "./adapters/gemini.ts";
 import { captureSession, type CaptureResult } from "./store.ts";
 
 /** Guess which agent produced a session log from its path. */
@@ -17,17 +18,14 @@ export async function captureFile(
   vault: string,
   agent: AgentId = detectAgent(path),
 ): Promise<CaptureResult | null> {
-  let rec;
-  switch (agent) {
-    case "claude-code":
-      rec = await parseClaudeTranscript(path);
-      break;
-    case "codex":
-      rec = await parseCodexRollout(path);
-      break;
-    default:
-      throw new Error(`adapter for "${agent}" not implemented yet (v1 supports claude-code, codex)`);
+  // Gemini's logs.json holds many sessions in one file — capture each, return the last.
+  if (agent === "gemini") {
+    let last: CaptureResult | null = null;
+    for (const rec of parseGeminiLogs(path)) last = captureSession(vault, rec);
+    return last;
   }
+
+  const rec = agent === "codex" ? await parseCodexRollout(path) : await parseClaudeTranscript(path);
   if (!rec) return null;
   return captureSession(vault, rec);
 }

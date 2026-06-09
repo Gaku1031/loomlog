@@ -3,6 +3,7 @@ import { captureFile, captureHook } from "./capture.ts";
 import { scanCodex, scanGemini, type ScanSummary } from "./scan.ts";
 import { buildReport, renderText } from "./report.ts";
 import { initVault, wireClaudeHook } from "./init.ts";
+import { parseFlags, validateDateFlags } from "./args.ts";
 import { resolveVault } from "./util.ts";
 import type { AgentId } from "./types.ts";
 
@@ -38,32 +39,7 @@ Options:
   --project <p>   (report) Filter to one project
   --json          (report) Machine-readable output
 
-More commands (init) coming next.`;
-
-const BOOLEAN_FLAGS = new Set(["json", "week", "hook", "skip-obsidian", "wire-claude"]);
-
-function parseFlags(args: string[]): { positional: string[]; flags: Record<string, string> } {
-  const positional: string[] = [];
-  const flags: Record<string, string> = {};
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]!;
-    if (a === "-w") {
-      flags.week = "true";
-    } else if (a.startsWith("--")) {
-      const name = a.slice(2);
-      const next = args[i + 1];
-      if (BOOLEAN_FLAGS.has(name) || next === undefined || next.startsWith("-")) {
-        flags[name] = "true";
-      } else {
-        flags[name] = next;
-        i++;
-      }
-    } else {
-      positional.push(a);
-    }
-  }
-  return { positional, flags };
-}
+Options shared above accept either "--flag value" or "--flag=value".`;
 
 async function main(): Promise<void> {
   const [cmd, ...rest] = process.argv.slice(2);
@@ -120,7 +96,7 @@ async function main(): Promise<void> {
       console.log("next:");
       console.log(`  export LOOMLOG_VAULT="${vault}"`);
       if (r.agents.claudeCode) console.log("  • Claude Code: install the plugin (integrations/claude-plugin) or run: loomlog init --wire-claude");
-      if (r.agents.codex) console.log("  • Codex: copy integrations/codex/prompts/report.md → ~/.codex/prompts/ ; capture via `loomlog scan codex`");
+      if (r.agents.codex) console.log("  • Codex: copy integrations/codex/prompts/loomlog.md → ~/.codex/prompts/ ; capture via `loomlog scan codex`");
       if (r.agents.gemini) console.log("  • Gemini: copy integrations/gemini/commands/report.toml → ~/.gemini/commands/ (experimental)");
       break;
     }
@@ -130,6 +106,7 @@ async function main(): Promise<void> {
         console.error(`scan supports: codex | gemini | all (got "${agent}")`);
         process.exit(1);
       }
+      validateDateFlags(flags);
       const vault = resolveVault(flags.vault);
       const line = (name: string, s: ScanSummary) =>
         console.log(`✓ ${name} scan: ${s.captured} captured, ${s.skipped} skipped, ${s.errors} errors (${s.found} found)`);
@@ -139,6 +116,7 @@ async function main(): Promise<void> {
       break;
     }
     case "report": {
+      validateDateFlags(flags);
       const vault = resolveVault(flags.vault);
       const data = buildReport(vault, {
         date: flags.date,

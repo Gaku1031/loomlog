@@ -6,9 +6,10 @@
 
 `loom` = the three agents' threads, woven into one log + knowledge graph.
 
-> ⚠️ **Status: early v1, in development.** Claude Code capture works today. Codex and
-> Gemini adapters are landing next. See [`grill-loomlog-20260607.md`](./grill-loomlog-20260607.md)
-> for the full locked design.
+> **Status: v1, published on [npm](https://www.npmjs.com/package/loomlog).** Claude Code
+> and Codex are fully supported; Gemini CLI is best-effort/experimental (it logs prompts
+> only and auto-deletes sessions). See [`grill-loomlog-20260607.md`](./grill-loomlog-20260607.md)
+> for the full locked design and [`RELEASING.md`](./RELEASING.md) for the release pipeline.
 
 ## Why
 

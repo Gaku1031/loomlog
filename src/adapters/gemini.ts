@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { SessionRecord } from "../types.ts";
-import { redact } from "../redact.ts";
-import { activeMinutes, localDate } from "../util.ts";
+import { redactClip } from "../redact.ts";
+import { activeMinutes, homeShorten, localDate } from "../util.ts";
 
 interface GeminiEntry {
   sessionId?: string;
@@ -62,18 +62,18 @@ export function parseGeminiLogs(path: string): SessionRecord[] {
       id,
       agent: "gemini",
       project,
-      cwd,
+      cwd: homeShorten(cwd),
       date: localDate(start),
       start,
       end,
       activeMin: activeMinutes(timestamps),
-      intent: firstMsg ? redact(firstMsg.trim().replace(/\s+/g, " ").slice(0, 120)) : "(no prompt captured)",
+      intent: firstMsg ? redactClip(firstMsg) : "(no prompt captured)",
       files: [],
       commandCount: 0,
       commandCats: {},
       tools: [],
       errorCount: 0,
-      sourcePath: path,
+      sourcePath: homeShorten(path),
     });
   }
   return records;

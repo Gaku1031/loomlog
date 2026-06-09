@@ -12,21 +12,37 @@ const RULES: Rule[] = [
     re: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
     replace: "«private-key redacted»",
   },
-  // Provider API keys / tokens
-  { re: /sk-[A-Za-z0-9_-]{16,}/g, replace: "«openai-key»" },
+  // Provider API keys / tokens (most-specific prefixes first)
   { re: /sk-ant-[A-Za-z0-9_-]{16,}/g, replace: "«anthropic-key»" },
+  { re: /sk-[A-Za-z0-9_-]{16,}/g, replace: "«openai-key»" },
+  { re: /github_pat_[A-Za-z0-9_]{20,}/g, replace: "«github-pat»" },
   { re: /gh[pousr]_[A-Za-z0-9]{20,}/g, replace: "«github-token»" },
+  { re: /glpat-[A-Za-z0-9_-]{20,}/g, replace: "«gitlab-token»" },
+  { re: /npm_[A-Za-z0-9]{36}/g, replace: "«npm-token»" },
+  { re: /\b[sr]k_live_[A-Za-z0-9]{16,}/g, replace: "«stripe-key»" },
+  { re: /\bsecret_[A-Za-z0-9]{32,}/g, replace: "«notion-secret»" },
+  { re: /\bhf_[A-Za-z0-9]{32,}/g, replace: "«hf-token»" },
   { re: /xox[baprs]-[A-Za-z0-9-]{10,}/g, replace: "«slack-token»" },
-  { re: /AKIA[0-9A-Z]{16}/g, replace: "«aws-key»" },
+  { re: /\bya29\.[A-Za-z0-9_-]+/g, replace: "«google-oauth»" },
   { re: /AIza[0-9A-Za-z_-]{30,}/g, replace: "«google-key»" },
+  { re: /\b(?:AKIA|ASIA|AROA|AIDA)[0-9A-Z]{16}\b/g, replace: "«aws-key»" },
+  // Slack / Discord incoming-webhook URLs
+  { re: /https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9\/]+/g, replace: "«slack-webhook»" },
+  { re: /https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/api\/webhooks\/[0-9]+\/[A-Za-z0-9_-]+/g, replace: "«discord-webhook»" },
+  // Bearer tokens in an Authorization header
+  { re: /\b(Authorization\s*:\s*Bearer)\s+[A-Za-z0-9._~+/=-]{12,}/gi, replace: (_m, k: string) => `${k} «redacted»` },
+  // Credentials embedded in a URL: scheme://user:pass@host
+  { re: /\b([a-z][a-z0-9+.-]*:\/\/[^\s:/@]+):[^\s:/@]+@/gi, replace: (_m, head: string) => `${head}:«redacted»@` },
   // JWT
   {
     re: /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g,
     replace: "«jwt»",
   },
-  // KEY=VALUE / "key": "value" for sensitive-looking keys — keep the key, mask the value
+  // KEY=VALUE / "key": "value" for sensitive-looking keys — keep the key, mask the value.
+  // The optional quotes around the separator cover JSON ("password": "x") as well as
+  // shell/env (PASSWORD=x) forms.
   {
-    re: /\b([A-Za-z0-9_]*(?:secret|token|password|passwd|api[_-]?key|access[_-]?key)[A-Za-z0-9_]*)\b(\s*[:=]\s*)["']?[^\s"',}]+/gi,
+    re: /\b([A-Za-z0-9_]*(?:secret|token|password|passwd|api[_-]?key|access[_-]?key)[A-Za-z0-9_]*)\b["']?(\s*[:=]\s*)["']?[^\s"',}]+/gi,
     replace: (_m, key: string, sep: string) => `${key}${sep}«redacted»`,
   },
 ];
@@ -37,4 +53,13 @@ export function redact(input: string): string {
     out = out.replace(re, replace as string);
   }
   return out;
+}
+
+/**
+ * Redact, collapse whitespace, THEN clip to `max` chars.
+ * Order matters: clipping first could split a secret across the boundary and
+ * defeat the redaction regex, so redaction always runs on the full string.
+ */
+export function redactClip(input: string, max = 120): string {
+  return redact(input).replace(/\s+/g, " ").trim().slice(0, max);
 }
