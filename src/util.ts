@@ -73,6 +73,50 @@ export function tally(items: string[]): Record<string, number> {
   return out;
 }
 
+/**
+ * Extract git commit subject lines from a shell command string (0-token, mechanical).
+ * Handles `-m "..."`, `-m '...'`, `-m $'...'`, and heredoc bodies
+ * (`git commit -m "$(cat <<'EOF' ... EOF)"` / `git commit -F - <<EOF ... EOF`).
+ * Returns the first line of each commit message found.
+ */
+export function extractCommits(cmd: string): string[] {
+  if (!/\bgit\b/.test(cmd) || !/\bcommit\b/.test(cmd)) return [];
+  const firstLine = (s: string): string => s.split(/\r?\n/).map((x) => x.trim()).find(Boolean) ?? "";
+  const out: string[] = [];
+
+  // 1) heredoc bodies (most common for multi-line messages from agents)
+  const heredoc = /<<-?\s*(['"]?)([A-Za-z_]\w*)\1\r?\n([\s\S]*?)\r?\n[ \t]*\2(?!\w)/g;
+  let h: RegExpExecArray | null;
+  while ((h = heredoc.exec(cmd))) {
+    const s = firstLine(h[3]!);
+    if (s) out.push(s);
+  }
+  if (out.length) return out;
+
+  // The -m flag may be combined (-am, -sm) or spelled out (--message).
+  // 2) ... $'...' (ANSI-C quoting)
+  for (const m of cmd.matchAll(/(?:--message|-[A-Za-z]*m)[=\s]+\$'((?:[^'\\]|\\.)*)'/g)) {
+    const s = firstLine(m[1]!.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\'/g, "'"));
+    if (s) out.push(s);
+  }
+  if (out.length) return out;
+
+  // 3) ... "..." / ... '...'
+  for (const m of cmd.matchAll(/(?:--message|-[A-Za-z]*m)[=\s]+(["'])((?:(?!\1)[\s\S])*)\1/g)) {
+    const s = firstLine(m[2]!);
+    if (s) out.push(s);
+  }
+  if (out.length) return out;
+
+  // 4) ... bareword (single unquoted token)
+  const bare = cmd.match(/(?:--message|-[A-Za-z]*m)[=\s]+(\S+)/);
+  if (bare) {
+    const s = firstLine(bare[1]!);
+    if (s) out.push(s);
+  }
+  return out;
+}
+
 /** Leading command name from a shell command line (strips env-assignments / sudo / path). */
 export function commandCategory(cmd: string): string {
   for (let tok of cmd.trim().split(/\s+/)) {

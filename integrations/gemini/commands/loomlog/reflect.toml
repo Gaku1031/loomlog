@@ -1,0 +1,13 @@
+description = "loomlog: academic reflection (WSN/Gibbs/AAR/KPT/YWT)"
+
+prompt = """
+Run `loomlog scan gemini` then `loomlog reflect --template {{args}} --json` (default template: wsn).
+Facilitate an interactive reflection grounded in an academic framework. From the JSON:
+1. Present the factual "What" stages (fromFacts:true) from facts.report — per project: intent,
+   key changes, work type, blockers, 成果(commits). Concise.
+2. For each stage with `ask`, ask the user those questions ONE STAGE AT A TIME; wait for answers.
+3. Compose the reflection in template.name structure, then save by piping the markdown to the
+   JSON's save.command: printf '%s' "<reflection>" | loomlog reflect-save --date <range.to> --template <id>
+4. Report the saved path (Reflections/<date>.md).
+Assumes loomlog is installed globally and LOOMLOG_VAULT is set (defaults to ~/loomlog).
+"""

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, rangeDates, activeMinutes, commandCategory, homeShorten, isValidDate } from "../src/util.ts";
+import { addDays, rangeDates, activeMinutes, commandCategory, homeShorten, isValidDate, extractCommits } from "../src/util.ts";
 import { homedir } from "node:os";
 
 test("addDays crosses month/year boundaries", () => {
@@ -34,6 +34,20 @@ test("homeShorten replaces $HOME with ~", () => {
   assert.equal(homeShorten(homedir() + "/proj/x"), "~/proj/x");
   assert.equal(homeShorten(homedir()), "~");
   assert.equal(homeShorten("/etc/passwd"), "/etc/passwd");
+});
+
+test("extractCommits pulls subject lines from every quoting form", () => {
+  assert.deepEqual(extractCommits('git commit -m "feat: add X"'), ["feat: add X"]);
+  assert.deepEqual(extractCommits("git commit -am 'fix: Y'"), ["fix: Y"]);
+  assert.deepEqual(extractCommits("git commit -m $'chore: z\\nbody'"), ["chore: z"]);
+  // heredoc with a multi-line body → first line only
+  assert.deepEqual(
+    extractCommits("git commit -m \"$(cat <<'EOF'\nfeat: heredoc subject\n\nlong body\nEOF\n)\""),
+    ["feat: heredoc subject"],
+  );
+  // not a commit / no message
+  assert.deepEqual(extractCommits("git status"), []);
+  assert.deepEqual(extractCommits("npm test"), []);
 });
 
 test("isValidDate rejects impossible dates", () => {

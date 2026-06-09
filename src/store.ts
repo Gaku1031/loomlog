@@ -156,6 +156,7 @@ function renderDaily(vault: string, day: DayFile): void {
       body.push(`- コマンド: ${r.commandCount}回 (${cats.join(", ")})`);
     }
     body.push(`- 詰まり: ${r.errorCount > 0 ? `${r.errorCount}件のエラー #blocker` : "なし"}`);
+    if (r.commits.length) body.push(`- 成果: ${r.commits.map((c) => `\`${c}\``).join(" / ")}`);
     body.push("");
   }
 

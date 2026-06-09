@@ -23,6 +23,8 @@ test("codex adapter: counts shell_command, detects Exit-code errors, extracts ap
     { type: "response_item", timestamp: "2026-06-08T12:00:03.000Z", payload: { type: "function_call", name: "shell_command", arguments: JSON.stringify({ command: "git status", workdir: "/home/u/proj" }) } },
     // older shell form (command is an argv array)
     { type: "response_item", timestamp: "2026-06-08T12:00:04.000Z", payload: { type: "function_call", name: "shell", arguments: JSON.stringify({ command: ["npm", "test"] }) } },
+    // a commit — its subject must be captured
+    { type: "response_item", timestamp: "2026-06-08T12:00:04.500Z", payload: { type: "function_call", name: "shell_command", arguments: JSON.stringify({ command: 'git commit -m "fix: auth bug"' }) } },
     // newer plain-text failure output
     { type: "response_item", timestamp: "2026-06-08T12:00:05.000Z", payload: { type: "function_call_output", output: "Exit code: 1\nWall time: 0.2 seconds\nOutput:\nboom" } },
     // older structured success output (must NOT count as error)
@@ -36,10 +38,11 @@ test("codex adapter: counts shell_command, detects Exit-code errors, extracts ap
   assert.equal(rec!.agent, "codex");
   assert.equal(rec!.project, "proj");
   assert.equal(rec!.intent, "fix the auth bug");
-  assert.equal(rec!.commandCount, 2);
-  assert.equal(rec!.commandCats.git, 1);
+  assert.equal(rec!.commandCount, 3);
+  assert.equal(rec!.commandCats.git, 2); // git status + git commit
   assert.equal(rec!.commandCats.npm, 1);
   assert.equal(rec!.errorCount, 1); // only the Exit code: 1, not the exit_code: 0
+  assert.deepEqual(rec!.commits, ["fix: auth bug"]);
   assert.deepEqual(rec!.files, ["src/auth.ts"]);
   assert.ok(rec!.tools.includes("apply_patch"));
   assert.ok(rec!.tools.includes("shell_command"));

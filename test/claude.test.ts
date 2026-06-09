@@ -20,6 +20,7 @@ test("claude adapter: intent, commands, files, tools, blockers", async () => {
     { type: "user", timestamp: "2026-06-08T12:00:01.000Z", sessionId: "s1", cwd: "/home/u/proj", message: { role: "user", content: "add unit tests" } },
     { type: "assistant", timestamp: "2026-06-08T12:00:02.000Z", message: { role: "assistant", content: [{ type: "tool_use", name: "Bash", input: { command: "npm test" } }] } },
     { type: "assistant", timestamp: "2026-06-08T12:00:03.000Z", message: { role: "assistant", content: [{ type: "tool_use", name: "Edit", input: { file_path: "/home/u/proj/src/x.ts" } }] } },
+    { type: "assistant", timestamp: "2026-06-08T12:00:03.500Z", message: { role: "assistant", content: [{ type: "tool_use", name: "Bash", input: { command: 'git commit -m "test: add unit tests"' } }] } },
     // failed tool result → one blocker
     { type: "user", timestamp: "2026-06-08T12:00:04.000Z", message: { role: "user", content: [{ type: "tool_result", is_error: true, content: "boom" }] } },
   ]);
@@ -29,8 +30,10 @@ test("claude adapter: intent, commands, files, tools, blockers", async () => {
   assert.equal(rec!.agent, "claude-code");
   assert.equal(rec!.project, "proj");
   assert.equal(rec!.intent, "add unit tests");
-  assert.equal(rec!.commandCount, 1);
+  assert.equal(rec!.commandCount, 2);
   assert.equal(rec!.commandCats.npm, 1);
+  assert.equal(rec!.commandCats.git, 1);
+  assert.deepEqual(rec!.commits, ["test: add unit tests"]);
   assert.deepEqual(rec!.files, ["src/x.ts"]);
   assert.deepEqual(rec!.tools, ["Bash", "Edit"]);
   assert.equal(rec!.errorCount, 1);

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import type { SessionRecord } from "../types.ts";
+import { SCHEMA_VERSION, type SessionRecord } from "../types.ts";
 import { redactClip } from "../redact.ts";
 import { activeMinutes, homeShorten, localDate } from "../util.ts";
 
@@ -73,7 +73,9 @@ export function parseGeminiLogs(path: string): SessionRecord[] {
       commandCats: {},
       tools: [],
       errorCount: 0,
+      commits: [],
       sourcePath: homeShorten(path),
+      schemaVersion: SCHEMA_VERSION,
     });
   }
   return records;

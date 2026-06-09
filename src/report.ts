@@ -21,6 +21,7 @@ export interface ProjectReport {
   tools: string[];
   blockers: number;
   intents: string[];
+  commits: string[];
 }
 
 export interface ReportData {
@@ -101,6 +102,7 @@ export function buildReport(vault: string, opts: ReportOptions): ReportData {
           .sort((a, b) => a.start.localeCompare(b.start))
           .map((r) => r.intent)
           .slice(0, 8),
+        commits: [...new Set(recs.flatMap((r) => r.commits))].slice(0, 15),
       };
     })
     .sort((a, b) => b.activeMin - a.activeMin);
@@ -147,7 +149,101 @@ export function renderText(r: ReportData): string {
     const cmds = topCommands(p.commands);
     if (cmds) out.push(`  - commands: ${cmds}`);
     out.push(`  - 詰まり: ${p.blockers > 0 ? `${p.blockers}件 #blocker` : "なし"}`);
+    if (p.commits.length) out.push(`  - 成果: ${p.commits.join(" / ")}`);
     out.push("");
+  }
+  return out.join("\n");
+}
+
+// ---------- patterns: "what kind of work do I do?" ----------
+
+export interface PatternsData {
+  range: { from: string; to: string };
+  totals: { sessions: number; activeMin: number; blockers: number; commits: number; days: number };
+  workTypes: [string, number][]; // command category → count, desc
+  projectsByTime: { project: string; activeMin: number; pct: number }[];
+  agents: { agent: string; activeMin: number; sessions: number }[];
+  busiestDays: { date: string; activeMin: number }[];
+  recentCommits: string[];
+}
+
+/** Aggregate cross-cutting patterns over a range: work types, time split, busiest days, output. */
+export function buildPatterns(vault: string, opts: ReportOptions): PatternsData {
+  const range = resolveRange(opts);
+  const sessions: SessionRecord[] = [];
+  const dayMin = new Map<string, number>();
+
+  for (const date of rangeDates(range.from, range.to)) {
+    let recs = readDay(vault, date);
+    if (opts.project) recs = recs.filter((r) => r.project === opts.project);
+    if (recs.length === 0) continue;
+    sessions.push(...recs);
+    dayMin.set(date, recs.reduce((a, r) => a + r.activeMin, 0));
+  }
+
+  const totalMin = sessions.reduce((a, s) => a + s.activeMin, 0);
+  const cmd: Record<string, number> = {};
+  const projMin: Record<string, number> = {};
+  const agentMin: Record<string, number> = {};
+  const agentSessions: Record<string, number> = {};
+  const commits: string[] = [];
+  for (const s of sessions) {
+    for (const [k, n] of Object.entries(s.commandCats)) cmd[k] = (cmd[k] ?? 0) + n;
+    projMin[s.project] = (projMin[s.project] ?? 0) + s.activeMin;
+    agentMin[s.agent] = (agentMin[s.agent] ?? 0) + s.activeMin;
+    agentSessions[s.agent] = (agentSessions[s.agent] ?? 0) + 1;
+    commits.push(...s.commits);
+  }
+
+  return {
+    range,
+    totals: {
+      sessions: sessions.length,
+      activeMin: totalMin,
+      blockers: sessions.reduce((a, s) => a + s.errorCount, 0),
+      commits: commits.length,
+      days: dayMin.size,
+    },
+    workTypes: Object.entries(cmd).sort((a, b) => b[1] - a[1]).slice(0, 12),
+    projectsByTime: Object.entries(projMin)
+      .sort((a, b) => b[1] - a[1])
+      .map(([project, activeMin]) => ({ project, activeMin, pct: totalMin ? Math.round((activeMin / totalMin) * 100) : 0 })),
+    agents: Object.entries(agentMin)
+      .sort((a, b) => b[1] - a[1])
+      .map(([agent, activeMin]) => ({ agent, activeMin, sessions: agentSessions[agent] ?? 0 })),
+    busiestDays: [...dayMin.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([date, activeMin]) => ({ date, activeMin })),
+    recentCommits: commits.slice(-12).reverse(),
+  };
+}
+
+/** Human-readable patterns digest. */
+export function renderPatterns(p: PatternsData): string {
+  const span = p.range.from === p.range.to ? p.range.from : `${p.range.from} .. ${p.range.to}`;
+  const out: string[] = [`loomlog patterns — ${span}`];
+  if (p.totals.sessions === 0) {
+    out.push("(no sessions captured in this range)");
+    return out.join("\n");
+  }
+  out.push(`${p.totals.sessions} sessions · ${p.totals.activeMin}m active · ${p.totals.days} active days · ${p.totals.blockers} blockers · ${p.totals.commits} commits`);
+  out.push("");
+  out.push("## どういう作業が多いか (command categories)");
+  out.push("  " + p.workTypes.map(([k, n]) => `${k}×${n}`).join(", "));
+  out.push("");
+  out.push("## プロジェクト別の時間配分");
+  for (const x of p.projectsByTime) out.push(`  - ${x.project}: ${x.activeMin}m (${x.pct}%)`);
+  out.push("");
+  out.push("## エージェント使い分け");
+  for (const a of p.agents) out.push(`  - ${a.agent}: ${a.activeMin}m · ${a.sessions} sessions`);
+  out.push("");
+  out.push("## 多忙だった日");
+  for (const d of p.busiestDays) out.push(`  - ${d.date}: ${d.activeMin}m`);
+  if (p.recentCommits.length) {
+    out.push("");
+    out.push("## 最近の成果 (commits)");
+    for (const c of p.recentCommits) out.push(`  - ${c}`);
   }
   return out.join("\n");
 }

@@ -26,7 +26,9 @@ function rec(over: Partial<SessionRecord> = {}): SessionRecord {
     commandCats: { git: 2 },
     tools: ["Bash"],
     errorCount: 0,
+    commits: [],
     sourcePath: "~/.claude/x.jsonl",
+    schemaVersion: 1,
     ...over,
   };
 }

@@ -1,9 +1,9 @@
 import { createReadStream } from "node:fs";
 import { basename, isAbsolute, normalize, relative } from "node:path";
 import { createInterface } from "node:readline";
-import type { SessionRecord } from "../types.ts";
+import { SCHEMA_VERSION, type SessionRecord } from "../types.ts";
 import { redactClip } from "../redact.ts";
-import { activeMinutes, commandCategory, homeShorten, localDate, tally } from "../util.ts";
+import { activeMinutes, commandCategory, extractCommits, homeShorten, localDate, tally } from "../util.ts";
 
 const PATCH_FILE_RE = /^\*\*\* (?:Update|Add|Delete) File: (.+)$/gm;
 
@@ -100,6 +100,7 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
   const timestamps: string[] = [];
   const files = new Set<string>();
   const commandCatList: string[] = [];
+  const commits = new Set<string>();
   const tools = new Set<string>();
   let commandCount = 0;
   let errorCount = 0;
@@ -141,6 +142,7 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
       if (cmd !== null) {
         commandCount++;
         commandCatList.push(commandCategory(cmd));
+        for (const c of extractCommits(cmd)) commits.add(c);
       }
     } else if (ptype === "custom_tool_call") {
       tools.add(name ?? "custom_tool_call");
@@ -178,6 +180,8 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
     commandCats: tally(commandCatList),
     tools: [...tools].sort(),
     errorCount,
+    commits: [...commits].map((c) => redactClip(c, 140)).slice(0, 20),
     sourcePath: homeShorten(path),
+    schemaVersion: SCHEMA_VERSION,
   };
 }

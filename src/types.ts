@@ -1,5 +1,8 @@
 export type AgentId = "claude-code" | "codex" | "gemini";
 
+/** Bumped when the SessionRecord shape changes, so future versions can migrate the store. */
+export const SCHEMA_VERSION = 1;
+
 /**
  * One captured agent session, normalized across agents.
  * This is the durable unit written to the store. Capture is purely mechanical
@@ -33,8 +36,12 @@ export interface SessionRecord {
   tools: string[];
   /** Number of failed tool calls — proxy for "詰まり" (#blocker). */
   errorCount: number;
+  /** git commit subjects made during the session (the dev's own "what I shipped" log), redacted. */
+  commits: string[];
   /** Origin log file (for provenance / debugging). */
   sourcePath: string;
+  /** Store schema version this record was written with. */
+  schemaVersion: number;
 }
 
 export interface DayFile {

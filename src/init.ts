@@ -33,7 +33,7 @@ export function initVault(
   opts: { obsidianConfig?: string; skipObsidian?: boolean } = {},
 ): InitResult {
   const createdDirs: string[] = [];
-  for (const sub of ["", "Daily", "Projects", ".loomlog/days", ".obsidian"]) {
+  for (const sub of ["", "Daily", "Projects", "Reflections", ".loomlog/days", ".obsidian"]) {
     const dir = sub ? join(vault, sub) : vault;
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });

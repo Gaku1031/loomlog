@@ -1,9 +1,9 @@
 import { createReadStream } from "node:fs";
 import { basename, isAbsolute, normalize, relative } from "node:path";
 import { createInterface } from "node:readline";
-import type { SessionRecord } from "../types.ts";
+import { SCHEMA_VERSION, type SessionRecord } from "../types.ts";
 import { redactClip } from "../redact.ts";
-import { activeMinutes, commandCategory, homeShorten, localDate, tally } from "../util.ts";
+import { activeMinutes, commandCategory, extractCommits, homeShorten, localDate, tally } from "../util.ts";
 
 const FILE_TOOLS = new Set(["Edit", "Write", "NotebookEdit", "MultiEdit"]);
 
@@ -27,6 +27,7 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
   const cwdCounts = new Map<string, number>();
   const files = new Set<string>();
   const commandCatList: string[] = [];
+  const commits = new Set<string>();
   const tools = new Set<string>();
   let commandCount = 0;
   let errorCount = 0;
@@ -63,6 +64,7 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
           if (b.name === "Bash" && typeof b.input?.command === "string") {
             commandCount++;
             commandCatList.push(commandCategory(b.input.command));
+            for (const c of extractCommits(b.input.command)) commits.add(c);
           }
         } else if (b.type === "tool_result" && b.is_error) {
           errorCount++;
@@ -106,6 +108,8 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
     commandCats: tally(commandCatList),
     tools: [...tools].sort(),
     errorCount,
+    commits: [...commits].map((c) => redactClip(c, 140)).slice(0, 20),
     sourcePath: homeShorten(path),
+    schemaVersion: SCHEMA_VERSION,
   };
 }

@@ -39,6 +39,37 @@ agent session logs ──(capture, mechanical, 0 tokens)──▶ <vault>/Daily/
 | Codex | No | lazy scan at report time |
 | Gemini CLI | Yes (on by default) | scheduled daily scan *(experimental)* |
 
+## Recall — "what did I do?"
+
+Forgot what you worked on? Ask loomlog. The first arg is a query (mechanical, 0 tokens,
+works in a plain terminal):
+
+```bash
+loomlog 2026-06-08        # a specific day        loomlog today | yesterday
+loomlog week              # last 7 days           loomlog month        # last 30
+loomlog <project>         # one project's history loomlog patterns     # what work you do most
+```
+
+`patterns` answers "what kind of work do I do?" — your command-type mix, time split across
+projects, agent usage, busiest days, and recent **commits** (loomlog reads your `git commit`
+messages straight from the logs — your own "what I shipped" log, 0 tokens).
+
+## Reflect — structured retrospection, grounded in the research
+
+Recall is *what*; reflection is *so what / now what*. loomlog fills the factual layer
+mechanically; your agent's host model facilitates the reflection using an established
+reflective-practice framework, and the result is saved back into the vault under
+`Reflections/` (capture never overwrites it). Inside any agent:
+
+```
+/loomlog:reflect          # daily — What / So What / Now What (Borton→Driscoll)
+/loomlog:weekly           # weekly — Gibbs Reflective Cycle (1988)
+```
+
+Templates: `wsn` (daily default) · `gibbs` (weekly) · `aar` (After-Action Review, blocker-heavy)
+· `kpt` · `ywt`. The CLI side is `loomlog reflect --template <t> --json` →
+`loomlog reflect-save` (no API key — the host model does the facilitation).
+
 ## Quick try (dev)
 
 ```bash
@@ -77,11 +108,11 @@ Or, without the plugin, copy the commands into a namespaced folder:
 
 ```bash
 mkdir -p ~/.claude/commands/loomlog
-cp integrations/claude-plugin/commands/report.md ~/.claude/commands/loomlog/
-cp integrations/claude-plugin/commands/weekly.md ~/.claude/commands/loomlog/
+cp integrations/claude-plugin/commands/*.md ~/.claude/commands/loomlog/
 ```
 
-Either way you get **`/loomlog:report`** (today) and **`/loomlog:weekly`** inside Claude Code.
+Either way you get **`/loomlog:report`** (today), **`/loomlog:reflect`** (daily reflection),
+and **`/loomlog:weekly`** (Gibbs weekly) inside Claude Code.
 
 ### Codex — no auto-delete, so a lazy scan suffices (no hook needed)
 
@@ -119,6 +150,7 @@ A vault is just Markdown:
 <vault>/
   Daily/2026-06-07.md      # one note per day, sections per project
   Projects/<name>.md       # auto-maintained project index (MOC)
+  Reflections/<date>.md    # saved reflections (capture never overwrites these)
   .obsidian/graph.json     # graph view config (written by `init`)
   .loomlog/                # source-of-truth JSON; the Markdown is a projection
 ```

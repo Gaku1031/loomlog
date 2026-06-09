@@ -1,7 +1,7 @@
 {
   "name": "loomlog",
-  "version": "0.0.1",
-  "description": "Capture Claude Code sessions into your loomlog vault (Stop hook) and report across agents (/report, /weekly).",
+  "version": "0.2.0",
+  "description": "Capture Claude Code sessions into your loomlog vault (Stop hook), recall across agents (/report), and reflect with academic frameworks (/reflect, /weekly).",
   "author": { "name": "Gaku1031" },
   "homepage": "https://github.com/Gaku1031/loomlog"
 }

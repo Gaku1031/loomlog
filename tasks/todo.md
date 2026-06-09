@@ -48,6 +48,20 @@
 - [ ] scan の日付抽出を Windows パス対応(`path.sep`非依存)/ 成長中ログの安定化待ち
 - [ ] Gemini 日次スキャンの **自動化**(launchd/cron インストーラ)
 
+## v0.3.0: 想起(recall)＋学術メソッドの振り返り(2026-06-09)
+設計全文: `tasks/v0.3-reflection-design.md`
+- [x] **commitメッセージ捕捉**(`commits`): git commit subject を shell/Bash から0トークン抽出(-m/-am/$''/heredoc対応)。実データでiOS開発の濃い4 commit抽出を確認。日報・patternsに「成果」として表示
+- [x] **`loomlog <query>`**: 日付 / today / yesterday / week / month / `<project>` / `patterns` を機械ルーティング(素のターミナルで0トークン)。「毎日何したか忘れる」を想起で解決
+- [x] **`patterns`**: 作業種別の分布 / プロジェクト時間配分 / エージェント使い分け / 多忙日 / 最近の成果commit
+- [x] **振り返りエンジン**: 4メソッド(WSN/Gibbs/AAR/KPT/YWT)を `src/reflect.ts` に。`loomlog reflect --template <t> --json`(事実+型の段階を出力)→ ホストモデルが対話進行 → `loomlog reflect-save`(stdin→`Reflections/<date>.md`、captureに上書きされない、Daily/Projへ逆リンク、グラフ紫)
+- [x] スラッシュコマンド: `/loomlog:reflect`(WSN日次・対話・保存)/`/loomlog:weekly`(Gibbs週次)/codex・gemini reflect prompt。plugin v0.2.0
+- [x] テスト 23→29件 / README更新 / init が Reflections/ も作成 / 0.3.0
+
+### v0.4 候補(次の価値)
+- [ ] **再発する詰まり**: error fingerprint(失敗テキストの正規化署名)をキャプチャ → 「別エージェントでも同じ失敗」検出。AAR/Gibbsの分析が強くなる
+- [ ] **関心ドリフト**: 全プロンプト要旨(promptTurns)+ 宣言intent vs 実時間配分
+- [ ] agent fit profile / marker(decision/root cause/TODO)抽出 / MCP 自由問い合わせ
+
 ## v2(種は撒く・今は作らない)
 - [ ] インサイト: 再発する詰まり / 関心ドリフト / 学びの結晶化(数値シグナル→LLM解釈の二段)
 - [ ] MCP サーバ(過去の自由問い合わせ)

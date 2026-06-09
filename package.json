@@ -1,6 +1,6 @@
 {
   "name": "loomlog",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local, cross-agent dev journal for Claude Code, Codex & Gemini CLI — passively weaves your AI coding sessions into an Obsidian-compatible vault.",
   "type": "module",
   "bin": {

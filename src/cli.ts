@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { captureFile, captureHook } from "./capture.ts";
 import { scanCodex, scanGemini, type ScanSummary } from "./scan.ts";
-import { buildReport, renderText } from "./report.ts";
+import { buildReport, renderText, buildPatterns, renderPatterns, type ReportOptions } from "./report.ts";
+import { buildReflection, saveReflection, isTemplate, FRAMEWORKS, type Template } from "./reflect.ts";
 import { initVault, wireClaudeHook } from "./init.ts";
 import { parseFlags, validateDateFlags } from "./args.ts";
-import { resolveVault } from "./util.ts";
+import { addDays, isValidDate, resolveVault, todayLocal } from "./util.ts";
 import type { AgentId } from "./types.ts";
 
 const USAGE = `loomlog — local, cross-agent dev journal
@@ -29,6 +30,19 @@ Usage:
       Summarize the vault over a date range. Default: today, human-readable.
       --json emits compact JSON for a host model to format into a report.
 
+  loomlog <query>            Quick recall — answers "what did I do?":
+      loomlog 2026-06-08       a specific day        loomlog today | yesterday
+      loomlog week | month     last 7 / 30 days      loomlog <project>   that project
+      loomlog patterns         what kind of work you do most (+ --since/--until)
+
+  loomlog reflect [--template wsn|gibbs|aar|kpt|ywt] [--date|-w|--since/--until]
+                  [--project <name>] [--vault <dir>]
+      Emit a reflection context (facts + an academic reflection framework's stages)
+      as JSON for the host model to facilitate interactively. Templates:
+        wsn (default, daily) · gibbs (weekly) · aar (blocker-heavy) · kpt · ywt
+  loomlog reflect-save --date <d> --template <t> [--weekly] [--vault <dir>]
+      Append a finished reflection (read from stdin) to Reflections/<date>.md.
+
 Options:
   --vault <dir>   Vault directory (default: $LOOMLOG_VAULT or ~/loomlog)
   --agent <id>    Force the source agent (default: auto-detect from path)
@@ -41,9 +55,54 @@ Options:
 
 Options shared above accept either "--flag value" or "--flag=value".`;
 
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const c of process.stdin) chunks.push(c as Buffer);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+const SUBCOMMANDS = new Set(["capture", "scan", "init", "report", "reflect", "reflect-save"]);
+
+/**
+ * Quick-recall dispatch: a first arg that isn't a subcommand is treated as a query —
+ * a date, a range keyword (today/yesterday/week/month), `patterns`, or a project name.
+ */
+function runQuery(token: string, flags: Record<string, string>): void {
+  const vault = resolveVault(flags.vault);
+  const emit = (text: string, data: unknown) => console.log(flags.json === "true" ? JSON.stringify(data) : text);
+
+  if (token === "patterns" || token === "stats") {
+    validateDateFlags(flags);
+    const opts: ReportOptions = { since: flags.since ?? addDays(todayLocal(), -29), until: flags.until, project: flags.project };
+    const data = buildPatterns(vault, opts);
+    emit(renderPatterns(data), data);
+    return;
+  }
+
+  let opts: ReportOptions;
+  if (isValidDate(token)) opts = { date: token };
+  else if (token === "today") opts = { date: todayLocal() };
+  else if (token === "yesterday") opts = { date: addDays(todayLocal(), -1) };
+  else if (token === "week" || token === "7d") opts = { week: true };
+  else if (token === "month" || token === "30d") opts = { since: addDays(todayLocal(), -29) };
+  else if (/^\d{4}-\d{2}-\d{2}$/.test(token)) {
+    throw new Error(`not a real date: ${token}`);
+  } else {
+    // Treat as a project name; default to the last 90 days unless a range is given.
+    opts = { project: token, since: flags.since ?? addDays(todayLocal(), -89), until: flags.until };
+  }
+  const data = buildReport(vault, opts);
+  emit(renderText(data), data);
+}
+
 async function main(): Promise<void> {
   const [cmd, ...rest] = process.argv.slice(2);
   const { positional, flags } = parseFlags(rest);
+
+  if (cmd && cmd !== "-h" && cmd !== "--help" && !SUBCOMMANDS.has(cmd)) {
+    runQuery(cmd, flags);
+    return;
+  }
 
   switch (cmd) {
     case "capture": {
@@ -126,6 +185,44 @@ async function main(): Promise<void> {
         project: flags.project,
       });
       console.log(flags.json === "true" ? JSON.stringify(data) : renderText(data));
+      break;
+    }
+    case "reflect": {
+      validateDateFlags(flags);
+      const tmpl = flags.template ?? "wsn";
+      if (!isTemplate(tmpl)) {
+        console.error(`reflect --template must be one of: ${Object.keys(FRAMEWORKS).join(" | ")} (got "${tmpl}")`);
+        process.exit(1);
+      }
+      const vault = resolveVault(flags.vault);
+      const ctx = buildReflection(vault, tmpl, {
+        date: flags.date,
+        week: flags.week === "true",
+        since: flags.since,
+        until: flags.until,
+        project: flags.project,
+      });
+      // reflect is for the host model to facilitate → JSON is the primary output.
+      console.log(JSON.stringify(ctx));
+      break;
+    }
+    case "reflect-save": {
+      validateDateFlags(flags);
+      const tmpl = flags.template ?? "wsn";
+      if (!isTemplate(tmpl)) {
+        console.error(`reflect-save --template must be one of: ${Object.keys(FRAMEWORKS).join(" | ")}`);
+        process.exit(1);
+      }
+      const date = flags.date ?? todayLocal();
+      const vault = resolveVault(flags.vault);
+      const body = await readStdin();
+      if (!body.trim()) {
+        console.error("reflect-save: no reflection text on stdin");
+        process.exit(1);
+      }
+      const projects = flags.project ? [flags.project] : undefined;
+      const file = saveReflection(vault, { date, template: tmpl as Template, weekly: flags.weekly === "true", body, projects });
+      console.log(`✓ saved reflection → ${file}`);
       break;
     }
     case undefined:

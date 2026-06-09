@@ -15,6 +15,7 @@ export const GRAPH_JSON = {
   colorGroups: [
     { query: "path:Daily", color: { a: 1, rgb: 4895977 } }, // blue
     { query: "path:Projects", color: { a: 1, rgb: 5757197 } }, // green
+    { query: "path:Reflections", color: { a: 1, rgb: 11030239 } }, // purple
     { query: "tag:#blocker", color: { a: 1, rgb: 14431557 } }, // red
   ],
   collapseDisplay: false,
