@@ -111,7 +111,7 @@ async function main(): Promise<void> {
       console.log(`  agents detected: ${detected.join(", ") || "none"}`);
 
       if (flags["wire-claude"] === "true") {
-        const w = wireClaudeHook(flags["claude-settings"]);
+        const w = wireClaudeHook(flags["claude-settings"], vault);
         const msg = { added: "Stop hook added (backup at settings.json.loomlog.bak)", exists: "Stop hook already present", "no-file": "~/.claude/settings.json not found" }[w];
         console.log(`  claude wiring: ${msg}`);
       }

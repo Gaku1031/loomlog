@@ -64,7 +64,10 @@ export type WireResult = "added" | "exists" | "no-file";
  * (The recommended public path is the plugin, whose hook self-registers; this is
  *  for users who prefer wiring their own settings directly.)
  */
-export function wireClaudeHook(settingsPath = join(homedir(), ".claude", "settings.json")): WireResult {
+export function wireClaudeHook(
+  settingsPath = join(homedir(), ".claude", "settings.json"),
+  vault?: string,
+): WireResult {
   if (!existsSync(settingsPath)) return "no-file";
   const data: any = JSON.parse(readFileSync(settingsPath, "utf8"));
   data.hooks ??= {};
@@ -76,10 +79,11 @@ export function wireClaudeHook(settingsPath = join(homedir(), ".claude", "settin
   const bak = `${settingsPath}.loomlog.bak`;
   if (!existsSync(bak)) copyFileSync(settingsPath, bak);
 
-  stop.push({
-    matcher: "",
-    hooks: [{ type: "command", command: "loomlog capture --hook 2>/dev/null || true" }],
-  });
+  // Bake the vault into the command so the hook is independent of the shell env.
+  const command = vault
+    ? `loomlog capture --hook --vault ${JSON.stringify(vault)} 2>/dev/null || true`
+    : "loomlog capture --hook 2>/dev/null || true";
+  stop.push({ matcher: "", hooks: [{ type: "command", command }] });
   writeFileSync(settingsPath, JSON.stringify(data, null, 2));
   return "added";
 }

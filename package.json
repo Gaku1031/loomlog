@@ -1,17 +1,19 @@
 {
   "name": "loomlog",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Local, cross-agent dev journal for Claude Code, Codex & Gemini CLI — passively weaves your AI coding sessions into an Obsidian-compatible vault.",
   "type": "module",
   "bin": {
     "loomlog": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "integrations"
   ],
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsup src/cli.ts --format esm --clean",
+    "prepare": "npm run build",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
@@ -26,7 +28,14 @@
   "engines": {
     "node": ">=20"
   },
+  "author": "Gaku1031",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gaku1031/loomlog.git"
+  },
+  "homepage": "https://github.com/Gaku1031/loomlog#readme",
+  "bugs": "https://github.com/Gaku1031/loomlog/issues",
   "devDependencies": {
     "@types/node": "^22.10.0",
     "tsup": "^8.3.5",
