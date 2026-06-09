@@ -72,22 +72,34 @@ Or wire your own settings (strictly additive, backed up to `settings.json.loomlo
 loomlog init --wire-claude
 ```
 
-Then `/report` (today) and `/weekly` work inside Claude Code.
+Or, without the plugin, copy the commands into a namespaced folder:
+
+```bash
+mkdir -p ~/.claude/commands/loomlog
+cp integrations/claude-plugin/commands/report.md ~/.claude/commands/loomlog/
+cp integrations/claude-plugin/commands/weekly.md ~/.claude/commands/loomlog/
+```
+
+Either way you get **`/loomlog:report`** (today) and **`/loomlog:weekly`** inside Claude Code.
 
 ### Codex — no auto-delete, so a lazy scan suffices (no hook needed)
 
 ```bash
-cp integrations/codex/prompts/report.md ~/.codex/prompts/report.md
+mkdir -p ~/.codex/prompts
+cp integrations/codex/prompts/loomlog.md ~/.codex/prompts/loomlog.md
 ```
 
-Run `/report` in Codex, or `loomlog scan codex && loomlog report` anytime.
+Run **`/loomlog`** in Codex, or `loomlog scan codex && loomlog report` anytime.
 
 ### Gemini CLI — experimental (logs auto-delete by default → capture via scan)
 
 ```bash
-cp integrations/gemini/commands/report.toml ~/.gemini/commands/report.toml
+mkdir -p ~/.gemini/commands/loomlog
+cp integrations/gemini/commands/loomlog/report.toml ~/.gemini/commands/loomlog/report.toml
 loomlog scan gemini        # ingest current Gemini sessions
 ```
+
+Run **`/loomlog:report`** in Gemini.
 
 Gemini's `logs.json` records **prompts only** (no file/command detail), and Gemini
 auto-deletes old sessions — so schedule a daily scan to avoid losing history, e.g. cron:
