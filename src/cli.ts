@@ -157,7 +157,7 @@ async function main(): Promise<void> {
       console.log(`  export LOOMLOG_VAULT="${vault}"`);
       if (r.agents.claudeCode) console.log("  • Claude Code: install the plugin (integrations/claude-plugin) or run: loomlog init --wire-claude");
       if (r.agents.codex) console.log("  • Codex: copy integrations/codex/skills/loomlog → ~/.codex/skills/loomlog ; invoke with `$loomlog` or plain language");
-      if (r.agents.gemini) console.log("  • Gemini: copy integrations/gemini/commands/report.toml → ~/.gemini/commands/ (experimental)");
+      if (r.agents.gemini) console.log("  • Gemini: copy integrations/gemini/commands/loomlog/*.toml → ~/.gemini/commands/loomlog/ (experimental)");
       break;
     }
     case "scan": {
