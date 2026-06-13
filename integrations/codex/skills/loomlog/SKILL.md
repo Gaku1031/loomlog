@@ -15,6 +15,9 @@ loomlog reads local agent session logs and writes an Obsidian-compatible vault. 
 
 - Use `LOOMLOG_VAULT` when set.
 - If `LOOMLOG_VAULT` is unset, use `./.loomlog-vault` so Codex can write inside the workspace sandbox.
+  Note this is a *per-directory* fallback: with no `LOOMLOG_VAULT`, Codex captures land in a vault
+  separate from Claude/CLI's `~/loomlog`. To keep one cross-agent journal, set `LOOMLOG_VAULT` (run
+  `loomlog doctor` to detect a split).
 - Keep reports concise and in Japanese unless the user requests another language.
 
 ## Daily Report

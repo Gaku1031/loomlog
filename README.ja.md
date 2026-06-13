@@ -35,6 +35,21 @@ loomlog は **Claude Code・Codex・Gemini CLI** がすでにローカルに吐�
 - **あなたが所有するプレーンMarkdown。** Obsidian vaultを指すだけで、Daily ↔ Project ↔ Topic の
   グラフが自動で立ち上がります。
 
+## クイックスタート（約60秒）
+
+```bash
+npm install -g loomlog                  # 1. CLI をインストール
+export LOOMLOG_VAULT="$HOME/loomlog"    # 2. 全エージェントで1つのvaultに統一（~/.zshrc に追記）
+loomlog init --wire-claude              # 3. vault作成 + Claude Code の Stop フックを配線
+loomlog doctor                          # 4. 検証: PATH上のCLI・vault・フック・vault分裂の有無
+```
+
+あとはコーディングするだけ。レポートは各エージェントに頼む（`/loomlog:report`＝Claude、`$loomlog`＝Codex）か、
+ターミナルから振り返る（`loomlog today` · `loomlog week` · `loomlog <project>`）。
+Codex / Gemini も使う場合は [エージェントを連携](#3-エージェントを連携) を参照。うまく動かないときは `loomlog doctor`。
+
+<!-- TODO(visuals): `loomlog report` のGIFと、Obsidian の Daily↔Project↔Topic グラフのスクショをここに。READMEで最も効果の高い追加。 -->
+
 > **ステータス:** [npm](https://www.npmjs.com/package/loomlog) で公開済み。Claude Code と Codex は
 > 正式サポート、Gemini CLI は実験的（プロンプトのみ記録し、セッションを自動削除します）。
 >
