@@ -1,12 +1,39 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, rangeDates, activeMinutes, commandCategory, homeShorten, isValidDate, extractCommits } from "../src/util.ts";
+import { addDays, rangeDates, activeMinutes, commandCategory, commandSignature, blockerSignature, homeShorten, isValidDate, extractCommits } from "../src/util.ts";
 import { homedir } from "node:os";
 
 test("addDays crosses month/year boundaries", () => {
   assert.equal(addDays("2026-01-31", 1), "2026-02-01");
   assert.equal(addDays("2026-12-31", 1), "2027-01-01");
   assert.equal(addDays("2026-03-01", -1), "2026-02-28");
+});
+
+test("commandSignature collapses args/paths but keeps the meaningful subcommand", () => {
+  // same signature regardless of the path/flags → recurrences group together
+  assert.equal(commandSignature("go test ./internal/... -run TestX"), "go test");
+  assert.equal(commandSignature("go test ./pkg/foo"), "go test");
+  // runner keeps the script name; non-runner stops after one sub-word
+  assert.equal(commandSignature("npm run build"), "npm run build");
+  assert.equal(commandSignature("git push origin main"), "git push");
+  assert.equal(commandSignature("terraform apply -auto-approve"), "terraform apply");
+  // flags / quotes / paths immediately after the command don't become subcommands
+  assert.equal(commandSignature('psql -c "SELECT 1"'), "psql");
+  assert.equal(commandSignature("pytest tests/foo.py"), "pytest");
+  // env assignment + sudo prefixes are skipped
+  assert.equal(commandSignature("FOO=bar sudo systemctl restart nginx"), "systemctl restart");
+  assert.equal(commandSignature("   "), "?");
+  // navigation/env prefixes are peeled to the real work command (so a chain doesn't sign as "cd")
+  assert.equal(commandSignature("cd web && python3 -c 'print(1)'"), "python3");
+  assert.equal(commandSignature("cd /a && cd /b && npm run build"), "npm run build");
+  assert.equal(commandSignature("export FOO=1; go test ./..."), "go test");
+});
+
+test("blockerSignature prefers the command, falls back to file then tool", () => {
+  assert.deepEqual(blockerSignature({ command: "go test ./..." }), { sig: "go test", sample: "go test ./..." });
+  assert.deepEqual(blockerSignature({ file: "/home/u/proj/src/applePay.ts" }), { sig: "edit applePay.ts", sample: "/home/u/proj/src/applePay.ts" });
+  assert.deepEqual(blockerSignature({ tool: "WebFetch" }), { sig: "WebFetch", sample: "WebFetch" });
+  assert.equal(blockerSignature({}).sig, "?");
 });
 
 test("rangeDates is inclusive and ordered", () => {

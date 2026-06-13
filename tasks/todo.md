@@ -122,4 +122,36 @@
 - [x] **README 冒頭に 60秒 quickstart**(EN/JA 両方): install → `LOOMLOG_VAULT` → `init --wire-claude` → `doctor` の4行 + 「visuals TODO」プレースホルダ(GIF/グラフは別途ユーザーが追加)
 - [x] **GitHub topics 設定**: claude-code / codex / gemini-cli / obsidian / ai-agents / dev-journal / knowledge-graph / productivity(空→8件)。npm keywords も同期(dev-journal/knowledge-graph/productivity 追加)
 - [x] バージョン 0.5.0→**0.6.0**(package.json + plugin.json)。typecheck pass・**test 91件緑**(82→91、doctor 6 + init 3)・`npm run build` で dist 再生成・実環境スモーク(未init=exit1で fail/warn 表示、init+env=all green)
-- [ ] 残: visuals(report GIF + Obsidian グラフ スクショ)をユーザー手元で追加 / 配布(commit→PR→main→npm publish 0.6.0)
+- [x] 配布: commit→PR #1→main→**npm publish 0.6.0 完了**(workflow success / `latest: 0.6.0`)。GitHub topics 8件 live
+
+## v0.7.0: 0トークン日報フォーマット + README visuals(2026-06-14 — 実ユーザーFB反映)
+
+きっかけ: README用にGIFを作る過程で「`loomlog report` の出力だと "何をやったか" が伝わらない」「`claude -p` で日報生成を見せると、6/15からのクレジット課金と『0トークン』の売りに矛盾」。→ **標準コマンドの日報体裁を改善し、LLM不要で読める日報にする**のが本質と判断。
+
+- [x] **`renderText`/`renderMarkdown` を日報体裁に改修**(`src/report.ts`): プロジェクトごとに見出し + 各セッションの意図を**素の箇条書き**(`意図:` プレフィックス廃止)+ `↳ 成果:`(text)/`- 成果:`(md)にコミット。生の `files:`/`commands: npm×N` は日報から除外(`--json`・Dailyノート・`loomlog patterns` に残す)。`1 session` 単数化。`topCommands` 削除
+- [x] **`renderPatterns` にインサイト要点 + 横棒グラフ可視化を追加**(`src/report.ts`、Codex に可視化方針を相談の上): 生の数字羅列だと「何が言えるか/どんなパターンか」が伝わらない、という実FB対応。(1) 各セクション先頭に**数字から機械生成した一文**(0トークン)— 時間配分「acme-web が最多(49%)、上位2件で87%」/ エージェント「claude-code と codex をほぼ同等に、gemini は補助的」/ 作業種別: commandカテゴリ→可読ラベル(WORK_LABEL)「Git・パッケージ管理・Go が中心」/ ペース「<日> が最多(N分)、稼働N日」/ 出荷: conventional-commit型(COMMIT_TYPE)「9件 — テスト2・修正2…」。(2) **Unicode横棒グラフ**(`bar()` = █+端数▏▎▍▌▋▊▉、`displayWidth()`/`padTo()` でCJK幅=2を考慮した整列)を proportional 3セクション(プロジェクト時間配分・エージェント・多忙日)に描画。markdownは等幅前提を崩さないようテキスト維持。セクション順 time→agent→work→pace→ship
+- [x] **テスト更新**(`test/report.test.ts`): renderText の新体裁(素の意図箇条書き+↳成果・stats非ダンプ)/ renderMarkdown の見出し`· agents`化・`files:`/`commands:`/`意図:` 非出力 / patterns の各セクション要点(time集中・agent分担・work種別・commit型mix・rhythm)を text+md 両方で固定。**test 94件緑**(91→94)・typecheck pass・build OK
+- [x] **README visuals 確定**(EN/JA): hero GIF(`docs/report.gif`、3.4s)= 実 `loomlog today`(0トークン・LLM不要・claude不使用)が横断日報を出力。Recall セクションに `loomlog patterns` の別GIF(`docs/patterns.gif`、4.5s = 作業傾向・エージェント使い分け・成果)。Obsidianグラフ スクショ(`docs/obsidian-graph.png`)。ハイライト「レポートもトークン0」に更新。`/loomlog:report`(課金あり)は任意のプロ文体レイヤと整理
+- [x] **GIF再現基盤**(`docs/demo/`): `seed.ts`(synthetic・相対日付・今日=7セッション3エージェント)+ `report.tape`(vhs、dev CLIを `loomlog` 関数化して実コマンド表示)。`claude -p` 再生シムは廃止・削除。`docs/` は npm `files` 外
+- [x] バージョン 0.6.0→**0.7.0**(日報フォーマットは利用者可視の変更)
+- [ ] 残: GIF最終目視OK → 配布(commit→PR→main→npm publish 0.7.0)
+
+## v0.8.0: patterns を「インサイト」に — トレンド/エージェント適性/出荷/詰まり(2026-06-14 — 実FB「数字の羅列でインサイトが無い」)
+
+Codex に可視化方針も相談。**#4 詰まりは実vaultで検証 → ノイズ誤検出を発見し修正**(これが「判定と実際の整合」)。
+
+- [x] **#4 詰まり捕捉**(schema v2→v3): 失敗したツール呼び出しを *何が* 失敗したかと紐付け、正規化シグネチャ(`go test`/`npm run build`/`edit X`)+ redact済みサンプル(根拠)で記録。`src/util.ts commandSignature`(chainの`cd .. &&`を剥がして実作業コマンドを採る/runnerはサブコマンド保持)+ `blockerSignature` / `src/adapters/blockers.ts BlockerCollector`。claude(tool_use id↔tool_use_id)・codex(call_id)アダプタで紐付け。SCHEMA_VERSION昇格で既存ログ自動再scan
+- [x] **詰まり判定 = 再発(2回以上)のみ**: 1回限りの失敗は除外。集計時に `count>=2` のシグネチャだけ「詰まり」として根拠付きで提示(sig ✕回数・プロジェクト・サンプル)
+- [x] **実vault検証でノイズ誤検出を修正(整合性の肝)**: 実ログ855セッションで検証→ `cd✕139`/`Read✕136`/`rm`/`echo`/`AskUserQuestion`/`?` 等のナビ・探索・対話ツールの失敗を誤って「詰まり」判定していた。`isNoiseSignature`(NOISE_COMMANDS/NOISE_TOOLS/read-only git/`?`)で除外 → 再検証で `python3✕26`/`git mv✕10`/`WebFetch✕9`/`edit MEMORY.md✕8` 等の**本物の再発失敗**のみに。重い日も raw errorCount でなく*意味のある*失敗数で算出
+- [x] **詰まりの解像度UP(実FB「何に詰まって・どう解消するか見えない」)**: (1) **エラー本文の抜粋**(`errorExcerpt` がANSI除去+エラー行抽出)を捕捉=「なぜ失敗したか」。(2) **解消/未解決判定** — 失敗だけでなく成功も `record(call, ok)` で追跡し、同シグネチャが後で成功したら resolved。集計は最新セッションの状態を採用。実vault再検証: 「`claude-mem MCP ✕11 未解決` — Request timed out 30000ms」「`edit package.json ✕8 解消` — File has not been read yet」「`node/WebFetch — context-mode redirected`」等が出るように
+- [x] **詰まりが「刺さらない」FB → Codex相談の上、表示と媒体を刷新**: (1) 出力形式を `✗ 未解決 ×5 go test · billing-api` + `理由 <エラー>` の2行カード形式に(状態を文字で明示・`理由`ラベルで「なぜ」を同格に・lead は件数サマリに)。(2) `errorExcerpt` を *最後の*(最も具体的な)マッチ行を採用+スタックフレーム除外に改善。(3) **`loomlog patterns --blockers`** フラグ追加=詰まりだけの集中ビュー(`renderPatterns(p, {blockersOnly})` / args BOOLEAN_FLAGS / USAGE)。(4) **専用GIF `docs/blockers.gif`**(FontSize 22・少行・低速)で詰まりが大きく読める。密な full patterns GIF だと埋もれる問題を媒体ごと解決(Codex提案)。README Recall に配置
+- [x] test 102件緑(--blockers focused view・新フォーマット・errorExcerpt last-match を追加固定)
+- [x] **詰まりを「文章で(日報みたいに)」FB対応**: 生エラー1行だと意味が伝わらない → **セッションの intent(=ユーザー自身の言葉)で文に**: 「<intent>」中に <cmd> が N回失敗、未解決のまま/その後解消。+ 下にエラー(根拠)。`BlockerStat.intent` を最新セッションから集計。focused `--blockers`(prose・大フォント1行GIF `docs/blockers.gif` 1600px幅で折返し回避)と overview(compact 1行)を分離。test 102緑
+- [x] **#1 トレンド**: 前期間(同じ長さの直前期間)と比較。ヘッダに `▲ 前期間比 +N%`、プロジェクト別に `▲+Nm/▼-Nm/＋新規` + `(前期間のみ: X)`。前期間が空の時はmover非表示
+- [x] **#2 エージェント適性**: エージェントごとに「何に使っているか」(commit型mix→ラベル、無ければwork型)を棒グラフ横に。"codex: テスト・CI・修正"
+- [x] **#3 出荷とフロー**: セッション単位の出荷率%は粒度依存で誤解を生む(実データで90%↔4%に振れた)ため**廃止**。コミット数/稼働日 + commit型内訳 + 詰まりの重い日に。
+- [x] **`renderPatterns`/`renderMarkdownPatterns` 再構成**: 詰まり→出荷→エージェント→プロジェクト(mover)→ペース。markdownはテキスト維持
+- [x] テスト: commandSignature(peel)・blockerSignature・noise除外(claude adapter)・blocker grouping・patterns #1-4 + 再発のみ。**test 100件緑**・typecheck・build OK
+- [x] seed にsynthetic blocker + 前期間(gone project含む)を追加 / patterns GIF 再生成 / README Recall キャプションを「トレンド・詰まり(根拠付き)・出荷率・エージェント適性」に更新(EN/JA)
+- [x] バージョン 0.7.0→**0.8.0**(schema変更 + 利用者可視の大型変更)
+- [ ] 残: 配布(commit→PR→main→npm publish 0.8.0)

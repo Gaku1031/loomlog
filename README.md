@@ -10,6 +10,13 @@ already log into one Obsidian-compatible vault — then lets you **recall** any 
 
 <br>
 
+<img src="docs/report.gif" width="760"
+     alt="loomlog today — your whole cross-agent day (Claude Code · Codex · Gemini) as a daily report, with zero tokens and no LLM">
+<br>
+<sub><b><code>loomlog today</code></b> — your whole cross-agent day as a report. <b>0 tokens, no LLM.</b> (Want prose? <code>/loomlog:report</code> hands the same facts to your agent.)</sub>
+
+<br>
+
 [![npm version](https://img.shields.io/npm/v/loomlog.svg?logo=npm&label=npm&color=cb3837)](https://www.npmjs.com/package/loomlog)
 [![npm downloads](https://img.shields.io/npm/dm/loomlog.svg?color=cb3837)](https://www.npmjs.com/package/loomlog)
 [![node](https://img.shields.io/node/v/loomlog.svg?logo=node.js&logoColor=white&color=339933)](https://nodejs.org)
@@ -30,8 +37,9 @@ already log into one Obsidian-compatible vault — then lets you **recall** any 
 
 - **0 tokens to capture.** loomlog just parses the logs your agents already write — no LLM,
   no API key. Secrets are redacted before anything is stored.
-- **Reports run inside your agent.** The host model formats them through each agent's native
-  command, so there's no extra service and no cost.
+- **Reports cost 0 tokens too.** `loomlog today` / `week` print your cross-agent day straight from
+  the captured facts — no LLM. Want polished prose? `/loomlog:report` hands the same facts to your
+  agent (optional — that's the only step that spends tokens).
 - **Plain Markdown you own.** Point it at an Obsidian vault and the Daily ↔ Project ↔ Topic
   graph lights up automatically.
 
@@ -48,7 +56,12 @@ Now just code. Then ask any agent for a report — `/loomlog:report` (Claude), `
 or recall later from the terminal: `loomlog today` · `loomlog week` · `loomlog <project>`.
 Using Codex or Gemini too? See [Connect your agent](#3-connect-your-agent). Anything off? `loomlog doctor`.
 
-<!-- TODO(visuals): drop a `loomlog report` GIF and an Obsidian Daily↔Project↔Topic graph screenshot here — this is the single highest-leverage README addition. -->
+<p align="center">
+  <img src="docs/obsidian-graph.png" width="720"
+       alt="The same vault opened as an Obsidian graph — Daily (blue) ↔ Project (green) ↔ Topic (orange) ↔ Reflection (purple) nodes weaving together">
+  <br>
+  <sub>The same vault as an Obsidian graph: <b>Daily</b> ↔ <b>Project</b> ↔ <b>Topic</b> nodes light up on their own.</sub>
+</p>
 
 > **Status:** published on [npm](https://www.npmjs.com/package/loomlog). Claude Code and Codex
 > are fully supported; Gemini CLI is experimental (it logs prompts only and auto-deletes sessions).
@@ -285,9 +298,27 @@ loomlog <project>          # one project's history
 loomlog patterns           # what kind of work you do most
 ```
 
-`patterns` answers "what kind of work do I do?" — your command-type mix, time split across
-projects, agent usage, busiest days, and recent **commits** (read straight from your `git commit`
-messages in the logs — your own "what I shipped" log, 0 tokens).
+`patterns` answers "what's the shape of my work — and where am I stuck?" Not just stats you
+already feel: it shows the **trend** vs the previous period (▲/▼ per project), **where you got
+stuck** — recurring failures (詰まり), flagged only when the *same* command failed ≥2×, each shown
+with **the actual error and whether you got past it (✓) or are still stuck (✗)** — your **output &
+friction** (commits shipped, and the day failures clustered), and **which agent you reach for, for
+what** (test/refactor vs feature work). All 0 tokens, read straight from the logs.
+
+<p align="center">
+  <img src="docs/patterns.gif" width="680"
+       alt="loomlog patterns — week-over-week trend, recurring blockers (詰まり) with their error and resolved/unresolved status, output and friction, and which agent does what — all 0 tokens">
+  <br>
+  <sub><b>Insight, not a stats dump:</b> trend vs last period · where you got stuck (the failure, its error, ✓resolved / ✗still stuck) · output &amp; friction · which agent you use for what.</sub>
+</p>
+
+**`loomlog patterns --blockers`** zooms in on just the 詰まり, written as a sentence — *"while doing
+X, `go test` failed 5× and is still unresolved"* — with the actual error beneath it:
+
+<p align="center">
+  <img src="docs/blockers.gif" width="860"
+       alt="loomlog patterns --blockers — each sticking point as a sentence: while doing X, command Y failed N times, resolved or still stuck, with the error">
+</p>
 
 **Paste it anywhere — `--copy`.** Add `--copy` (or `-c`) to any recall command to send it to the
 clipboard as **rich text**, so it pastes *formatted* into Notion, Slack, or Docs — no more raw

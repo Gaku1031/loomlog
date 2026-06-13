@@ -65,7 +65,8 @@ Usage:
   loomlog <query>            Quick recall — answers "what did I do?":
       loomlog 2026-06-08       a specific day        loomlog today | yesterday
       loomlog week | month     last 7 / 30 days      loomlog <project>   that project
-      loomlog patterns         what kind of work you do most (+ --since/--until)
+      loomlog patterns         work-shape insight: trend, agent-fit, output, 詰まり (+ --since/--until)
+      loomlog patterns --blockers   just where you're stuck — recurring failures with the error & status
       Add --copy (or --md) to any of these to send it to the clipboard / as Markdown.
 
   loomlog reflect [--template wsn|gibbs|aar|kpt|ywt] [--date|-w|--since/--until]
@@ -160,10 +161,11 @@ function runQuery(token: string, flags: Record<string, string>): void {
     validateDateFlags(flags);
     const opts: ReportOptions = { since: flags.since ?? addDays(todayLocal(), -29), until: flags.until, project: flags.project };
     const data = buildPatterns(vault, opts);
+    const blockersOnly = flags.blockers === "true"; // --blockers → just the 詰まり (where am I stuck?)
     emit(flags, "patterns", spanOf(data.range), {
       json: () => JSON.stringify(data),
-      text: () => renderPatterns(data),
-      md: () => renderMarkdownPatterns(data),
+      text: () => renderPatterns(data, { blockersOnly }),
+      md: () => renderMarkdownPatterns(data, { blockersOnly }),
     });
     return;
   }

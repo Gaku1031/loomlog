@@ -1,6 +1,6 @@
 import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { resolve, sep } from "node:path";
+import { basename, resolve, sep } from "node:path";
 
 /** Replace a leading $HOME with `~` so stored paths don't leak the username. */
 export function homeShorten(p: string): string {
@@ -161,6 +161,67 @@ export function extractCommits(cmd: string): string[] {
     if (s) out.push(s);
   }
   return out;
+}
+
+// Tools whose meaningful action is the *second* word (script/subcommand runners), so
+// `npm run build` and `cargo test` keep that word in their failure signature.
+const SUBCOMMAND_RUNNERS = new Set([
+  "npm", "pnpm", "yarn", "bun", "npx", "go", "cargo", "deno", "dotnet", "mvn", "gradle",
+  "make", "just", "task", "rake", "poetry", "uv", "pdm", "composer", "bundle", "pip", "docker",
+]);
+
+// Navigation / env segments that merely precede the real work in a chain like `cd x && npm build`.
+const PEEL_PREFIXES = new Set(["cd", "pushd", "popd", "export", "source", ".", "set", "unset", "alias", "env"]);
+
+/** The command base (lowercased basename) of one shell segment, skipping env-assignments / sudo. */
+function segmentBase(seg: string): string {
+  const toks = seg.trim().split(/\s+/).filter(Boolean);
+  let i = 0;
+  while (i < toks.length && (toks[i] === "sudo" || toks[i] === "\\" || /^[A-Za-z_]\w*=/.test(toks[i]!))) i++;
+  return (toks[i] ?? "").replace(/^.*\//, "").replace(/[;|&].*$/, "").toLowerCase();
+}
+
+/**
+ * Stable signature for a shell command — the key for detecting a *recurring* failure (詰まり).
+ * Peels leading navigation/env segments so `cd x && npm run build` signs as "npm run build", then
+ * keeps the command plus a leading sub-word or two and drops flags, paths, and arguments: so
+ * `go test ./internal -run X` and `go test ./pkg` collapse to one signature ("go test") while
+ * `npm run build` and `npm run test` stay distinct. Returns "?" when nothing usable is found.
+ */
+export function commandSignature(cmd: string): string {
+  // Reach past `cd … &&` / `export … ;` to the first segment that actually does work.
+  const segs = cmd.split(/&&|\n|;/).map((s) => s.trim()).filter(Boolean);
+  let target = segs[0] ?? cmd;
+  for (const seg of segs) {
+    if (!PEEL_PREFIXES.has(segmentBase(seg))) { target = seg; break; }
+  }
+
+  const toks = target.trim().split(/\s+/).filter(Boolean);
+  let i = 0;
+  while (i < toks.length && (toks[i] === "sudo" || toks[i] === "\\" || /^[A-Za-z_]\w*=/.test(toks[i]!))) i++;
+  if (i >= toks.length) return "?";
+  const base = toks[i]!.replace(/^.*\//, "").replace(/[;|&].*$/, "").toLowerCase();
+  if (!base) return "?";
+  const maxParts = SUBCOMMAND_RUNNERS.has(base) ? 3 : 2; // command + 1 (or +2 for runners)
+  const parts = [base];
+  for (let j = i + 1; j < toks.length && parts.length < maxParts; j++) {
+    const t = toks[j]!;
+    if (t.startsWith("-")) break; // first flag ends the subcommand
+    if (!/^[A-Za-z][\w:.-]*$/.test(t)) break; // path / quote / operator / arg → stop
+    parts.push(t.toLowerCase());
+  }
+  return parts.join(" ");
+}
+
+/**
+ * Normalize a failed tool call into a (signature, evidence-sample) pair. The signature is the
+ * recurrence key; the sample is the actual command/target kept for the user to verify against.
+ */
+export function blockerSignature(o: { command?: string; file?: string; tool?: string }): { sig: string; sample: string } {
+  if (o.command && o.command.trim()) return { sig: commandSignature(o.command), sample: o.command.trim() };
+  if (o.file && o.file.trim()) return { sig: `edit ${basename(o.file.trim())}`, sample: o.file.trim() };
+  const t = o.tool?.trim() || "?";
+  return { sig: t, sample: t };
 }
 
 /** Leading command name from a shell command line (strips env-assignments / sudo / path). */
