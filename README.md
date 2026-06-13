@@ -35,6 +35,21 @@ already log into one Obsidian-compatible vault — then lets you **recall** any 
 - **Plain Markdown you own.** Point it at an Obsidian vault and the Daily ↔ Project ↔ Topic
   graph lights up automatically.
 
+## Quickstart (≈60s)
+
+```bash
+npm install -g loomlog                  # 1. install the CLI
+export LOOMLOG_VAULT="$HOME/loomlog"    # 2. one vault for every agent (add to ~/.zshrc)
+loomlog init --wire-claude              # 3. create the vault + wire Claude Code's Stop hook
+loomlog doctor                          # 4. verify: CLI on PATH, vault, hooks, no split
+```
+
+Now just code. Then ask any agent for a report — `/loomlog:report` (Claude), `$loomlog` (Codex) —
+or recall later from the terminal: `loomlog today` · `loomlog week` · `loomlog <project>`.
+Using Codex or Gemini too? See [Connect your agent](#3-connect-your-agent). Anything off? `loomlog doctor`.
+
+<!-- TODO(visuals): drop a `loomlog report` GIF and an Obsidian Daily↔Project↔Topic graph screenshot here — this is the single highest-leverage README addition. -->
+
 > **Status:** published on [npm](https://www.npmjs.com/package/loomlog). Claude Code and Codex
 > are fully supported; Gemini CLI is experimental (it logs prompts only and auto-deletes sessions).
 >

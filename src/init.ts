@@ -60,6 +60,16 @@ export function initVault(
 export type WireResult = "added" | "exists" | "no-file";
 
 /**
+ * POSIX single-quote a string for safe embedding in a shell command. Single quotes disable all
+ * shell expansion, so a vault path containing `$`, backticks, spaces, `;`, or `'` cannot break
+ * out of the argument or trigger command substitution. (The hook command is already POSIX-shaped
+ * — `2>/dev/null || true` — so single-quoting is the correct, consistent escape here.)
+ */
+function shellSingleQuote(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
  * Safely add a loomlog Stop hook to Claude Code's settings.json.
  * Strictly additive + idempotent + backed up — preserves all existing hooks.
  * (The recommended public path is the plugin, whose hook self-registers; this is
@@ -80,9 +90,10 @@ export function wireClaudeHook(
   const bak = `${settingsPath}.loomlog.bak`;
   if (!existsSync(bak)) copyFileSync(settingsPath, bak);
 
-  // Bake the vault into the command so the hook is independent of the shell env.
+  // Bake the vault into the command so the hook is independent of the shell env. Single-quote the
+  // path: a vault containing `$`, a space, or a backtick must not be re-interpreted by the shell.
   const command = vault
-    ? `loomlog capture --hook --vault ${JSON.stringify(vault)} 2>/dev/null || true`
+    ? `loomlog capture --hook --vault ${shellSingleQuote(vault)} 2>/dev/null || true`
     : "loomlog capture --hook 2>/dev/null || true";
   stop.push({ matcher: "", hooks: [{ type: "command", command }] });
   writeFileSync(settingsPath, JSON.stringify(data, null, 2));

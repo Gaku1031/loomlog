@@ -13,6 +13,7 @@ import {
 import { copyToClipboard, mdToHtml, type ClipboardPayload } from "./clipboard.ts";
 import { buildReflection, saveReflection, isTemplate, FRAMEWORKS, type Template } from "./reflect.ts";
 import { initVault, wireClaudeHook } from "./init.ts";
+import { runDoctor, renderDoctor } from "./doctor.ts";
 import { rerenderVault } from "./store.ts";
 import { scheduleScan, unscheduleScan, DEFAULT_SCAN_AT, type ScheduleResult, type UnscheduleResult } from "./schedule.ts";
 import { parseFlags, validateDateFlags } from "./args.ts";
@@ -46,6 +47,11 @@ Usage:
   loomlog rerender [--vault <dir>]
       Re-render every Daily note and Project MOC from the store (no log re-parsing).
       Use after upgrading to apply rendering changes (e.g. topic tags) to past notes.
+
+  loomlog doctor [--vault <dir>] [--json]
+      Diagnose your setup: CLI on PATH, LOOMLOG_VAULT, vault state, last capture,
+      Claude/Codex/Gemini wiring, and — most importantly — whether captures are
+      split across more than one vault. Exits non-zero if anything is broken.
 
   loomlog report [--date <YYYY-MM-DD>] [-w|--week] [--since <d>] [--until <d>]
                  [--project <name>] [--md] [-c|--copy] [--json] [--vault <dir>]
@@ -90,7 +96,7 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-const SUBCOMMANDS = new Set(["capture", "scan", "init", "report", "reflect", "reflect-save", "rerender"]);
+const SUBCOMMANDS = new Set(["capture", "scan", "init", "report", "reflect", "reflect-save", "rerender", "doctor"]);
 
 /** Compact "from" / "from .. to" label for confirmation lines. */
 function spanOf(range: { from: string; to: string }): string {
@@ -308,6 +314,13 @@ async function main(): Promise<void> {
       const r = rerenderVault(vault);
       console.log(`✓ rerendered ${r.days} day note(s), ${r.projects} project MOC(s)`);
       console.log(`  vault: ${vault}`);
+      break;
+    }
+    case "doctor": {
+      const report = runDoctor({ vault: flags.vault });
+      console.log(flags.json === "true" ? JSON.stringify(report) : renderDoctor(report));
+      // Non-zero on a hard failure so `loomlog doctor` is usable as a setup gate in scripts/CI.
+      if (!report.ok) process.exitCode = 1;
       break;
     }
     case "report": {

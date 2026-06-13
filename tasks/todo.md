@@ -110,3 +110,16 @@
 ## v2(種は撒く・今は作らない)
 - [ ] インサイト: 再発する詰まり / 関心ドリフト / 学びの結晶化(数値シグナル→LLM解釈の二段)
 - [ ] MCP サーバ(過去の自由問い合わせ)
+
+## v0.6.0: 初回成功率 — doctor + 失敗の可視化 + Stopフック堅牢化(2026-06-13 — Codexレビュー反映)
+
+優先は機能追加より「導入の成功率」。Codex レビューの6点を実コードで検証してから対応。
+
+- [x] **`loomlog doctor`**(新規 `src/doctor.ts` + cli 配線): PATH上のCLI / `LOOMLOG_VAULT` / vault初期化 / 最終キャプチャ鮮度 / **vault分裂検出**(active+`~/loomlog`+`./.loomlog-vault` を走査し複数にデータがあれば警告)/ Codex sandbox split の的確警告(env未設定×codex導入時のみ)/ Claude Stopフック(settings.json or プラグイン検出)/ Codexスキル / Geminiコマンド / hook.log のエラー尾。`--json` 対応。hard fail 時 exit 1(=スクリプト/CIのゲートに使える)。v0.4残「vault分裂の注意喚起」をこれで解消
+- [x] **Stopフック堅牢化**: `wireClaudeHook` の vault 埋込を `JSON.stringify`(二重引用→`$`/backtick が生きる)から **POSIX単一引用**(`shellSingleQuote`、`'\''` エスケープ)へ。パスに `$(...)`/space/backtick を含んでもシェル再解釈不可。`init.test.ts` で固定
+- [x] **失敗の可視化**: `captureHook` を try/catch で全面ガード(エージェントを絶対ブロックしない)し、失敗を `<vault>/.loomlog/hook.log` に追記(自己truncate 64KB上限)。`2>/dev/null` で消えていた Stopフックエラーが doctor から見える。`/loomlog:report`(report.md)に「loomlog不在/report失敗時は `loomlog doctor` を実行して要約をユーザーに伝える」導線を追加
+- [x] **vault分裂の根治導線**: Codex `SKILL.md` の Defaults に「`./.loomlog-vault` はディレクトリ毎のfallback。横断性のため `LOOMLOG_VAULT` を設定(`loomlog doctor` で分裂検出)」を明記
+- [x] **README 冒頭に 60秒 quickstart**(EN/JA 両方): install → `LOOMLOG_VAULT` → `init --wire-claude` → `doctor` の4行 + 「visuals TODO」プレースホルダ(GIF/グラフは別途ユーザーが追加)
+- [x] **GitHub topics 設定**: claude-code / codex / gemini-cli / obsidian / ai-agents / dev-journal / knowledge-graph / productivity(空→8件)。npm keywords も同期(dev-journal/knowledge-graph/productivity 追加)
+- [x] バージョン 0.5.0→**0.6.0**(package.json + plugin.json)。typecheck pass・**test 91件緑**(82→91、doctor 6 + init 3)・`npm run build` で dist 再生成・実環境スモーク(未init=exit1で fail/warn 表示、init+env=all green)
+- [ ] 残: visuals(report GIF + Obsidian グラフ スクショ)をユーザー手元で追加 / 配布(commit→PR→main→npm publish 0.6.0)
