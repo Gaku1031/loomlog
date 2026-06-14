@@ -1,7 +1,25 @@
 export type AgentId = "claude-code" | "codex" | "gemini";
 
 /** Bumped when the SessionRecord shape changes, so future versions can migrate the store. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
+
+/**
+ * A failed-tool-call signal within a session, grouped by a normalized signature. Recurrence of a
+ * signature (count >= 2, here or across sessions) is what loomlog treats as a 詰まり / sticking
+ * point. `sample` keeps the actual (redacted) command/target so the judgment is verifiable.
+ */
+export interface Blocker {
+  /** Recurrence key, e.g. "go test", "npm run build", "edit applePay.ts". */
+  sig: string;
+  /** Redacted, clipped sample of the failing command/target — evidence the user can check. */
+  sample: string;
+  /** Redacted excerpt of the failure output — the key error line (the "why"). */
+  detail?: string;
+  /** Times this signature failed in the session. */
+  count: number;
+  /** True if the same signature later succeeded in this session (you got past it). */
+  resolved?: boolean;
+}
 
 /**
  * One captured agent session, normalized across agents.
@@ -38,6 +56,8 @@ export interface SessionRecord {
   tools: string[];
   /** Number of failed tool calls — proxy for "詰まり" (#blocker). */
   errorCount: number;
+  /** Failed tool calls grouped by signature (for recurring-blocker detection). Optional for v2 records. */
+  blockers?: Blocker[];
   /** git commit subjects made during the session (the dev's own "what I shipped" log), redacted. */
   commits: string[];
   /** Origin log file (for provenance / debugging). */

@@ -4,8 +4,16 @@ import { createInterface } from "node:readline";
 import { SCHEMA_VERSION, type SessionRecord } from "../types.ts";
 import { redact, redactClip } from "../redact.ts";
 import { activeMinutes, commandCategory, extractCommits, homeShorten, localDate, tally } from "../util.ts";
+import { BlockerCollector, type PendingCall } from "./blockers.ts";
 
 const FILE_TOOLS = new Set(["Edit", "Write", "NotebookEdit", "MultiEdit"]);
+
+/** Flatten a tool_result's content (string or block array) to text, for error-excerpt capture. */
+function toolResultText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) return content.map((b: any) => (typeof b?.text === "string" ? b.text : "")).join("\n");
+  return "";
+}
 
 /** Skip pseudo-prompts (system reminders, slash-command echoes, caveats, interrupts). */
 function isHumanPrompt(text: string): boolean {
@@ -30,6 +38,8 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
   const commits = new Set<string>();
   const tools = new Set<string>();
   const prompts: string[] = [];
+  const blockers = new BlockerCollector();
+  const pending = new Map<string, PendingCall>(); // tool_use id → what it was doing
   let commandCount = 0;
   let errorCount = 0;
   let sessionId: string | undefined;
@@ -60,14 +70,27 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
       for (const b of msg.content) {
         if (b.type === "tool_use") {
           tools.add(b.name);
-          if (FILE_TOOLS.has(b.name) && b.input?.file_path) files.add(b.input.file_path);
-          if (b.name === "Bash" && typeof b.input?.command === "string") {
+          const isFile = FILE_TOOLS.has(b.name) && typeof b.input?.file_path === "string";
+          const isBash = b.name === "Bash" && typeof b.input?.command === "string";
+          if (isFile) files.add(b.input.file_path);
+          if (isBash) {
             commandCount++;
             commandCatList.push(commandCategory(b.input.command));
             for (const c of extractCommits(b.input.command)) commits.add(c);
           }
-        } else if (b.type === "tool_result" && b.is_error) {
-          errorCount++;
+          // Remember what this call was doing so a later is_error result can be attributed to it.
+          if (typeof b.id === "string")
+            pending.set(b.id, { tool: b.name, command: isBash ? b.input.command : undefined, file: isFile ? b.input.file_path : undefined });
+        } else if (b.type === "tool_result") {
+          // Record every outcome: failures (with the error text) and successes (so a later pass of
+          // the same command marks the blocker resolved).
+          const call = typeof b.tool_use_id === "string" ? pending.get(b.tool_use_id) : undefined;
+          if (b.is_error) {
+            errorCount++;
+            blockers.record(call, false, toolResultText(b.content));
+          } else {
+            blockers.record(call, true);
+          }
         }
       }
     }
@@ -111,6 +134,7 @@ export async function parseClaudeTranscript(path: string): Promise<SessionRecord
     commandCats: tally(commandCatList),
     tools: [...tools].sort(),
     errorCount,
+    blockers: blockers.build(),
     commits: [...commits].map((c) => redactClip(c, 140)).slice(0, 20),
     sourcePath: redact(homeShorten(path)),
     schemaVersion: SCHEMA_VERSION,

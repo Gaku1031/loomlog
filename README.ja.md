@@ -10,6 +10,13 @@ loomlog は **Claude Code・Codex・Gemini CLI** がすでにローカルに吐�
 
 <br>
 
+<img src="docs/report.gif" width="760"
+     alt="loomlog today — 3エージェント(Claude Code・Codex・Gemini)横断の今日を、0トークン・LLM不要で日報化">
+<br>
+<sub><b><code>loomlog today</code></b> — 横断の今日をそのまま日報に。<b>0トークン・LLM不要。</b>(プロ文体が欲しい時は <code>/loomlog:report</code> が同じ事実をエージェントに渡す)</sub>
+
+<br>
+
 [![npm version](https://img.shields.io/npm/v/loomlog.svg?logo=npm&label=npm&color=cb3837)](https://www.npmjs.com/package/loomlog)
 [![npm downloads](https://img.shields.io/npm/dm/loomlog.svg?color=cb3837)](https://www.npmjs.com/package/loomlog)
 [![node](https://img.shields.io/node/v/loomlog.svg?logo=node.js&logoColor=white&color=339933)](https://nodejs.org)
@@ -30,8 +37,8 @@ loomlog は **Claude Code・Codex・Gemini CLI** がすでにローカルに吐�
 
 - **キャプチャはトークン0。** loomlog はエージェントが既に書き出しているログをパースするだけ。LLMもAPIキーも不要。
   保存前に秘密情報を正規表現でredact（伏字化）します。
-- **レポートはエージェント内で動く。** 整形は各エージェントのネイティブコマンド経由でホストモデルが担当。
-  追加サービスも追加コストもありません。
+- **レポートもトークン0。** `loomlog today` / `week` が横断の作業を、捕捉済みの事実からそのまま日報化（LLM不要）。
+  プロ文体が欲しい時だけ `/loomlog:report` が同じ事実をエージェントに渡す（唯一トークンを使う任意ステップ）。
 - **あなたが所有するプレーンMarkdown。** Obsidian vaultを指すだけで、Daily ↔ Project ↔ Topic の
   グラフが自動で立ち上がります。
 
@@ -48,7 +55,12 @@ loomlog doctor                          # 4. 検証: PATH上のCLI・vault・フ
 ターミナルから振り返る（`loomlog today` · `loomlog week` · `loomlog <project>`）。
 Codex / Gemini も使う場合は [エージェントを連携](#3-エージェントを連携) を参照。うまく動かないときは `loomlog doctor`。
 
-<!-- TODO(visuals): `loomlog report` のGIFと、Obsidian の Daily↔Project↔Topic グラフのスクショをここに。READMEで最も効果の高い追加。 -->
+<p align="center">
+  <img src="docs/obsidian-graph.png" width="720"
+       alt="同じvaultをObsidianのグラフで開いたところ — Daily(青) ↔ Project(緑) ↔ Topic(橙) ↔ Reflection(紫) が織り合わさる">
+  <br>
+  <sub>同じvaultをObsidianのグラフで開くと、<b>Daily</b> ↔ <b>Project</b> ↔ <b>Topic</b> ノードが自動で立ち上がる。</sub>
+</p>
 
 > **ステータス:** [npm](https://www.npmjs.com/package/loomlog) で公開済み。Claude Code と Codex は
 > 正式サポート、Gemini CLI は実験的（プロンプトのみ記録し、セッションを自動削除します）。
@@ -285,9 +297,26 @@ loomlog <project>          # 1プロジェクトの履歴
 loomlog patterns           # どんな仕事をしているかの傾向
 ```
 
-`patterns` は「どんな種類の仕事をしているか？」に答えます — コマンド種別の内訳、プロジェクト別の
-時間配分、エージェント利用、忙しかった日、そして直近の **コミット** — ログ内の `git commit` メッセージから
-直接読み取った、あなた自身の「何を出荷したか」ログです（トークン0）。
+`patterns` は「自分の仕事の形 — そしてどこで詰まっているか？」に答えます。すでに感じている数字の羅列ではなく:
+前期間との**トレンド**（プロジェクト別 ▲/▼）、**詰まったところ** — *同じ*コマンドが2回以上失敗した時だけ
+「詰まり」として、**実際のエラー内容と、乗り越えた(✓)/まだ未解決(✗)か**まで提示 — **出荷と摩擦**（コミット数と、
+失敗が集中した日）、そして**どのタスクにどのエージェントを使っているか**（テスト/リファクタ vs 機能追加）。
+すべて0トークン、ログから直接。
+
+<p align="center">
+  <img src="docs/patterns.gif" width="680"
+       alt="loomlog patterns — 前期間比トレンド・再発した失敗(詰まり)をエラー内容と解消/未解決つきで・出荷と摩擦・エージェントの使い分けを0トークンで">
+  <br>
+  <sub><b>統計の羅列ではなくインサイト:</b> 前期間比トレンド・どこで詰まったか(失敗・そのエラー・✓解消/✗未解決)・出荷と摩擦・どのタスクにどのエージェントを使うか。</sub>
+</p>
+
+**`loomlog patterns --blockers`** は 詰まり だけにズーム。文章で出ます —「<何をしていて> の最中に `go test`
+が5回失敗、未解決のまま」— その下に実際のエラー:
+
+<p align="center">
+  <img src="docs/blockers.gif" width="860"
+       alt="loomlog patterns --blockers — 詰まりを文章で: <作業>中に コマンドが N回失敗・解消/未解決、その下に実際のエラー">
+</p>
 
 **どこへでも貼れる — `--copy`。** どの recall コマンドにも `--copy`（または `-c`）を付けると、出力を
 **リッチテキスト**としてクリップボードに載せます。Notion・Slack・Docs に貼ると**整形済み**で入り、生の

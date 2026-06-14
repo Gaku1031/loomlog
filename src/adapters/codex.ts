@@ -4,6 +4,7 @@ import { createInterface } from "node:readline";
 import { SCHEMA_VERSION, type SessionRecord } from "../types.ts";
 import { redact, redactClip } from "../redact.ts";
 import { activeMinutes, commandCategory, extractCommits, homeShorten, localDate, tally } from "../util.ts";
+import { BlockerCollector, type PendingCall } from "./blockers.ts";
 
 const PATCH_FILE_RE = /^\*\*\* (?:Update|Add|Delete) File: (.+)$/gm;
 
@@ -69,6 +70,17 @@ function patchBody(raw: unknown): string {
   return raw;
 }
 
+/** Best-effort text of a tool output (string or structured), for error-excerpt capture. */
+function outputString(output: unknown): string {
+  if (typeof output === "string") return output;
+  if (output && typeof output === "object") {
+    const o = output as any;
+    if (typeof o.output === "string") return o.output;
+    if (typeof o.content === "string") return o.content;
+  }
+  return "";
+}
+
 /** Best-effort "this tool call failed" signal from a tool output (string or structured). */
 function isFailureOutput(output: unknown): boolean {
   if (typeof output === "string") {
@@ -103,6 +115,9 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
   const commits = new Set<string>();
   const tools = new Set<string>();
   const prompts: string[] = [];
+  const blockers = new BlockerCollector();
+  const pending = new Map<string, PendingCall>(); // call_id → what it was doing
+  let lastCall: PendingCall | undefined; // fallback when an output has no matching call_id
   let commandCount = 0;
   let errorCount = 0;
   let id: string | undefined;
@@ -135,7 +150,13 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
     } else if ((ptype === "function_call" || ptype === "custom_tool_call") && name === "apply_patch") {
       // apply_patch shows up as a custom_tool_call (input=patch) or a function_call (arguments JSON).
       tools.add("apply_patch");
-      for (const m of patchBody(p.input ?? p.arguments).matchAll(PATCH_FILE_RE)) files.add(m[1]!.trim());
+      let firstFile: string | undefined;
+      for (const m of patchBody(p.input ?? p.arguments).matchAll(PATCH_FILE_RE)) {
+        files.add(m[1]!.trim());
+        firstFile ??= m[1]!.trim();
+      }
+      lastCall = { tool: "apply_patch", file: firstFile };
+      if (typeof p.call_id === "string") pending.set(p.call_id, lastCall);
     } else if (ptype === "function_call") {
       tools.add(name ?? "function_call");
       const cmd = execCommand(name, p.arguments);
@@ -143,6 +164,8 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
         commandCount++;
         commandCatList.push(commandCategory(cmd));
         for (const c of extractCommits(cmd)) commits.add(c);
+        lastCall = { tool: name, command: cmd };
+        if (typeof p.call_id === "string") pending.set(p.call_id, lastCall);
       }
     } else if (ptype === "custom_tool_call") {
       tools.add(name ?? "custom_tool_call");
@@ -151,7 +174,13 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
       tools.add("apply_patch");
       for (const m of patchBody(p.input ?? p.arguments).matchAll(PATCH_FILE_RE)) files.add(m[1]!.trim());
     } else if (ptype === "function_call_output" || ptype === "custom_tool_call_output") {
-      if (isFailureOutput(p.output)) errorCount++;
+      const call = (typeof p.call_id === "string" ? pending.get(p.call_id) : undefined) ?? lastCall;
+      if (isFailureOutput(p.output)) {
+        errorCount++;
+        blockers.record(call, false, outputString(p.output));
+      } else {
+        blockers.record(call, true); // success → may resolve an earlier failure of the same command
+      }
     }
   }
 
@@ -183,6 +212,7 @@ export async function parseCodexRollout(path: string): Promise<SessionRecord | n
     commandCats: tally(commandCatList),
     tools: [...tools].sort(),
     errorCount,
+    blockers: blockers.build(),
     commits: [...commits].map((c) => redactClip(c, 140)).slice(0, 20),
     sourcePath: redact(homeShorten(path)),
     schemaVersion: SCHEMA_VERSION,
